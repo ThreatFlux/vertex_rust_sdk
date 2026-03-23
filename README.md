@@ -15,6 +15,7 @@ x-rust-sdk)
 - **Chat Completions**: Multi-turn conversations
 - **CLI Interface**: Command-line tool for easy interaction
 - **Async/Await**: Built with Tokio for high-performance async operations
+- **Model coverage notes**: See [`docs/gap_analysis_mar_2026.md`](docs/gap_analysis_mar_2026.md) for the latest Vertex AI model/support gaps.
 
 ## Repository
 
@@ -83,7 +84,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Generate content
     let request = GenerateContentRequest::new("Why is the sky blue?");
-    let response = client.generate_content("gemini-2.0-flash-001", &request).await?;
+    let response = client.generate_content("gemini-2.5-flash", &request).await?;
 
     if let Some(text) = response.text() {
         println!("Response: {}", text);
