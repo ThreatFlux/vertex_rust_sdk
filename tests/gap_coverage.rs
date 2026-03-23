@@ -7,7 +7,7 @@ fn manifest_path(file: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(file)
 }
 
-fn load_latest_gap_doc() -> String {
+fn latest_gap_doc_path() -> PathBuf {
     let docs_dir = manifest_path("docs");
     let mut candidates: Vec<(String, PathBuf)> = fs::read_dir(&docs_dir)
         .expect("docs directory should exist")
@@ -24,11 +24,14 @@ fn load_latest_gap_doc() -> String {
         .collect();
 
     candidates.sort_by(|a, b| a.0.cmp(&b.0));
-    let (_, path) = candidates
+    candidates
         .pop()
-        .expect("at least one gap analysis doc should be present");
+        .map(|(_, path)| path)
+        .expect("at least one gap analysis doc should be present")
+}
 
-    fs::read_to_string(path).expect("gap analysis doc should be readable")
+fn load_latest_gap_doc() -> String {
+    fs::read_to_string(latest_gap_doc_path()).expect("gap analysis doc should be readable")
 }
 
 #[test]
@@ -68,8 +71,14 @@ fn readme_links_gap_doc_and_uses_supported_model() {
         fs::read_to_string(manifest_path("README.md")).expect("README should be readable");
 
     assert!(
-        readme.contains("docs/gap_analysis_mar_2026.md"),
-        "README should link to the gap analysis doc"
+        readme.contains(
+            latest_gap_doc_path()
+                .file_name()
+                .expect("gap doc should have a filename")
+                .to_string_lossy()
+                .as_ref()
+        ),
+        "README should link to the latest gap analysis doc filename"
     );
     assert!(
         readme.contains("gemini-2.5-flash"),
