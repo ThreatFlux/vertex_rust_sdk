@@ -52,7 +52,7 @@ mime = "0.3"
 # CLI (optional, for bin targets)
 clap = { version = "4.5.54", features = ["derive"], optional = true }
 colored = { version = "3.0.0", optional = true }
-indicatif = { version = "0.17", optional = true }
+indicatif = { version = "0.18", optional = true }
 
 [dev-dependencies]
 tokio-test = "0.4"
