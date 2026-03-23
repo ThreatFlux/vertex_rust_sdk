@@ -298,10 +298,12 @@ jobs:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN || secrets.CARGO_REGISTRY_TOKEN }}
         run: |
           set -euo pipefail
+          cargo package --all-features
+          cargo package --list
           VERSION="${{ needs.prepare.outputs.version }}"
           if [[ -n "${PUBLISH_PACKAGES}" ]]; then
             for package in ${PUBLISH_PACKAGES}; do
-              cargo publish -p "${package}" --locked
+              cargo publish -p "${package}" --all-features --locked
               for _ in $(seq 1 20); do
                 if curl -fsSL "https://crates.io/api/v1/crates/${package}" | python3 - "$VERSION" <<'PY'
 import json
@@ -317,5 +319,6 @@ PY
               done
             done
           else
-            cargo publish --locked
+            cargo publish --all-features --locked
+          fi
           fi

@@ -1,6 +1,7 @@
 //! Benchmarks for Vertex Rust SDK
 
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use std::hint::black_box;
 use threatflux_vertex_rust_sdk::{
     ChatMessage, Content, CountTokensRequest, GenerateContentRequest, GenerationConfig, Part,
 };
