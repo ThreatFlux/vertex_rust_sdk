@@ -5,8 +5,10 @@ use std::collections::HashMap;
 /// Default Anthropics API version required by Vertex Claude endpoints.
 pub const DEFAULT_VERTEX_ANTHROPIC_VERSION: &str = "vertex-2023-10-16";
 
-/// Beta tag required to enable Anthropic Web Search tooling.
+/// Beta tag required to enable Anthropic Web Search tooling (original).
 pub const CLAUDE_WEB_SEARCH_BETA_TAG: &str = "web-search-2025-03-05";
+/// Beta tag for the 2026-02-09 web search variant (4.6 models with dynamic filtering).
+pub const CLAUDE_WEB_SEARCH_V2_BETA_TAG: &str = "web-search-2026-02-09";
 /// Beta tag required to unlock the 1M-token context window for Sonnet 4/4.5.
 pub const CLAUDE_LONG_CONTEXT_BETA_TAG: &str = "context-1m-2025-08-07";
 
@@ -60,6 +62,12 @@ pub enum ContentBlock {
     ServerToolUse { id: String, name: String, input: serde_json::Value },
     /// Result payload from a server tool invocation.
     WebSearchToolResult { tool_use_id: String, content: WebSearchToolContent },
+    /// Extended thinking content block.
+    Thinking {
+        thinking: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signature: Option<String>,
+    },
 }
 
 impl ContentBlock {
@@ -228,6 +236,9 @@ pub enum WebSearchToolType {
     #[serde(rename = "web_search_20250305")]
     #[default]
     WebSearch,
+    /// 2026-02-09 variant with dynamic filtering support (4.6 models).
+    #[serde(rename = "web_search_20260209")]
+    WebSearchV2,
 }
 
 /// Location metadata to localize web search results.
@@ -308,6 +319,19 @@ impl WebSearchTool {
         }
     }
 
+    /// Create a web search tool using the 2026-02-09 variant (for 4.6 models).
+    #[must_use]
+    pub fn new_v2() -> Self {
+        Self {
+            tool_type: WebSearchToolType::WebSearchV2,
+            name: "web_search".to_string(),
+            max_uses: None,
+            allowed_domains: None,
+            blocked_domains: None,
+            user_location: None,
+        }
+    }
+
     /// Set the maximum number of search invocations allowed.
     #[must_use]
     pub fn with_max_uses(mut self, max: Option<u8>) -> Self {
@@ -370,6 +394,8 @@ pub enum ToolChoice {
     Tool { name: String },
     /// Permit any tool use.
     Any,
+    /// Disable tool use entirely.
+    None,
 }
 
 /// Arbitrary metadata associated with a request.
@@ -411,9 +437,20 @@ pub enum StopReason {
     EndTurn,
     StopSequence,
     ToolUse,
+    ModelContextWindowExceeded,
 }
 
-/// Thinking configuration (Claude 4.x).
+/// Effort level for adaptive thinking mode (Claude 4.6+).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ThinkingEffort {
+    Low,
+    Medium,
+    High,
+    Max,
+}
+
+/// Thinking configuration (Claude 4.x+).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ThinkingConfig {
     #[serde(rename = "type")]
@@ -422,6 +459,13 @@ pub struct ThinkingConfig {
     pub budget_tokens: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allow_tool_use: Option<bool>,
+    /// Effort level for adaptive thinking (4.6+). Ignored when type is not `adaptive`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub effort: Option<ThinkingEffort>,
+    /// Display control for thinking content in streaming responses.
+    /// Set to `"omitted"` to suppress thinking text while preserving signature.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display: Option<String>,
 }
 
 impl ThinkingConfig {
@@ -432,6 +476,8 @@ impl ThinkingConfig {
             thinking_type: "enabled".to_string(),
             budget_tokens: Some(budget_tokens),
             allow_tool_use: None,
+            effort: None,
+            display: None,
         }
     }
 
@@ -442,13 +488,56 @@ impl ThinkingConfig {
             thinking_type: "enabled".to_string(),
             budget_tokens: Some(budget_tokens),
             allow_tool_use: Some(true),
+            effort: None,
+            display: None,
         }
     }
 
     #[must_use]
     #[allow(clippy::missing_const_for_fn)]
     pub fn disabled() -> Self {
-        Self { thinking_type: "disabled".to_string(), budget_tokens: None, allow_tool_use: None }
+        Self {
+            thinking_type: "disabled".to_string(),
+            budget_tokens: None,
+            allow_tool_use: None,
+            effort: None,
+            display: None,
+        }
+    }
+
+    /// Adaptive thinking — the model decides how much to think based on effort level.
+    /// Recommended for Claude 4.6+ models. Replaces `budget_tokens`.
+    #[must_use]
+    #[allow(clippy::missing_const_for_fn)]
+    pub fn adaptive(effort: ThinkingEffort) -> Self {
+        Self {
+            thinking_type: "adaptive".to_string(),
+            budget_tokens: None,
+            allow_tool_use: None,
+            effort: Some(effort),
+            display: None,
+        }
+    }
+
+    /// Adaptive thinking with tool use enabled.
+    #[must_use]
+    #[allow(clippy::missing_const_for_fn)]
+    pub fn adaptive_with_tools(effort: ThinkingEffort) -> Self {
+        Self {
+            thinking_type: "adaptive".to_string(),
+            budget_tokens: None,
+            allow_tool_use: Some(true),
+            effort: Some(effort),
+            display: None,
+        }
+    }
+
+    /// Omit thinking content from streaming responses (faster streaming).
+    /// The signature is still preserved for multi-turn continuity.
+    #[must_use]
+    pub fn with_display_omitted(mut self) -> Self {
+        self.display = Some("omitted".to_string());
+        self
     }
 }
 
@@ -516,6 +605,79 @@ impl<T> VecPush<T> for Option<Vec<T>> {
     }
 }
 
+/// JSON schema definition for structured output.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct JsonSchemaOutput {
+    /// Schema name used for identification.
+    pub name: String,
+    /// Optional description of the expected output.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// The JSON Schema object defining the output structure.
+    pub schema: serde_json::Value,
+}
+
+/// Output format specification for structured responses.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum OutputFormat {
+    /// Constrain output to conform to a JSON schema.
+    JsonSchema(JsonSchemaOutput),
+}
+
+/// Output configuration for structured responses (Claude 4.5+).
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct OutputConfig {
+    /// The desired output format.
+    pub format: OutputFormat,
+}
+
+impl OutputConfig {
+    /// Create an output config requiring JSON conforming to the given schema.
+    #[must_use]
+    pub fn json_schema(name: impl Into<String>, schema: serde_json::Value) -> Self {
+        Self {
+            format: OutputFormat::JsonSchema(JsonSchemaOutput {
+                name: name.into(),
+                description: None,
+                schema,
+            }),
+        }
+    }
+
+    /// Create an output config with a described JSON schema.
+    #[must_use]
+    pub fn json_schema_with_description(
+        name: impl Into<String>,
+        description: impl Into<String>,
+        schema: serde_json::Value,
+    ) -> Self {
+        Self {
+            format: OutputFormat::JsonSchema(JsonSchemaOutput {
+                name: name.into(),
+                description: Some(description.into()),
+                schema,
+            }),
+        }
+    }
+}
+
+/// Configuration for enabling citations in responses.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CitationsConfig {
+    pub enabled: bool,
+}
+
+impl CitationsConfig {
+    #[must_use]
+    pub const fn enabled() -> Self {
+        Self { enabled: true }
+    }
+}
+
 /// Request payload for Claude Sonnet via Vertex Anthropic endpoint.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MessageRequest {
@@ -547,6 +709,12 @@ pub struct MessageRequest {
     pub cache_control: Option<CacheControl>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub beta: Option<Vec<String>>,
+    /// Structured output configuration (Claude 4.5+).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_config: Option<OutputConfig>,
+    /// Enable citation generation for document content.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub citations: Option<CitationsConfig>,
     #[serde(flatten)]
     #[serde(skip_serializing_if = "HashMap::is_empty")]
     pub extra_params: HashMap<String, serde_json::Value>,
@@ -573,6 +741,8 @@ impl MessageRequest {
             metadata: None,
             cache_control: None,
             beta: None,
+            output_config: None,
+            citations: None,
             extra_params: HashMap::new(),
         }
     }
@@ -690,6 +860,20 @@ impl MessageRequest {
         self
     }
 
+    /// Set structured output configuration with JSON schema.
+    #[must_use]
+    pub fn output_config(mut self, config: OutputConfig) -> Self {
+        self.output_config = Some(config);
+        self
+    }
+
+    /// Enable citations in responses for document content.
+    #[must_use]
+    pub fn enable_citations(mut self) -> Self {
+        self.citations = Some(CitationsConfig::enabled());
+        self
+    }
+
     /// Inject provider-specific parameters (e.g., memory tool configuration).
     #[must_use]
     pub fn with_param(mut self, key: impl Into<String>, value: serde_json::Value) -> Self {
@@ -761,6 +945,9 @@ pub struct ContentBlockDelta {
     pub text: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub partial_json: Option<String>,
+    /// Thinking text emitted during extended thinking (may be omitted via display config).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thinking: Option<String>,
 }
 
 /// High level SSE event wrapper for Claude streaming responses.
@@ -952,5 +1139,121 @@ mod tests {
             }
             other => panic!("unexpected block variant: {other:?}"),
         }
+    }
+
+    #[test]
+    fn adaptive_thinking_serializes() {
+        let config = ThinkingConfig::adaptive(ThinkingEffort::High);
+        let value = serde_json::to_value(&config).unwrap();
+        assert_eq!(value["type"], "adaptive");
+        assert_eq!(value["effort"], "high");
+        assert!(value.get("budget_tokens").is_none());
+    }
+
+    #[test]
+    fn adaptive_thinking_with_display_omitted() {
+        let config = ThinkingConfig::adaptive(ThinkingEffort::Max).with_display_omitted();
+        let value = serde_json::to_value(&config).unwrap();
+        assert_eq!(value["type"], "adaptive");
+        assert_eq!(value["effort"], "max");
+        assert_eq!(value["display"], "omitted");
+    }
+
+    #[test]
+    fn thinking_effort_all_levels() {
+        for (effort, expected) in [
+            (ThinkingEffort::Low, "low"),
+            (ThinkingEffort::Medium, "medium"),
+            (ThinkingEffort::High, "high"),
+            (ThinkingEffort::Max, "max"),
+        ] {
+            let json = serde_json::to_value(effort).unwrap();
+            assert_eq!(json.as_str().unwrap(), expected);
+        }
+    }
+
+    #[test]
+    fn output_config_json_schema_serializes() {
+        let config = OutputConfig::json_schema(
+            "person",
+            serde_json::json!({
+                "type": "object",
+                "properties": { "name": { "type": "string" } },
+                "required": ["name"]
+            }),
+        );
+        let value = serde_json::to_value(&config).unwrap();
+        assert_eq!(value["format"]["type"], "json_schema");
+        assert_eq!(value["format"]["name"], "person");
+    }
+
+    #[test]
+    fn message_request_with_output_config_and_citations() {
+        let request = MessageRequest::new()
+            .max_tokens(1024)
+            .add_user_message("Extract data")
+            .output_config(OutputConfig::json_schema("data", serde_json::json!({})))
+            .enable_citations();
+
+        assert!(request.output_config.is_some());
+        assert!(request.citations.as_ref().unwrap().enabled);
+    }
+
+    #[test]
+    fn stop_reason_context_window_exceeded_round_trip() {
+        let reason = StopReason::ModelContextWindowExceeded;
+        let json = serde_json::to_value(&reason).unwrap();
+        assert_eq!(json, "model_context_window_exceeded");
+        let parsed: StopReason = serde_json::from_value(json).unwrap();
+        assert_eq!(parsed, StopReason::ModelContextWindowExceeded);
+    }
+
+    #[test]
+    fn web_search_v2_tool_serializes() {
+        let tool = WebSearchTool::new_v2().with_max_uses(Some(5));
+        let value = serde_json::to_value(&tool).unwrap();
+        assert_eq!(value["type"], "web_search_20260209");
+        assert_eq!(value["max_uses"], 5);
+    }
+
+    #[test]
+    fn tool_choice_none_variant() {
+        // ToolChoice uses #[serde(untagged)], so None serializes as null
+        let choice = ToolChoice::None;
+        let json = serde_json::to_value(&choice).unwrap();
+        assert!(json.is_null());
+    }
+
+    #[test]
+    fn content_block_delta_with_thinking() {
+        let delta_json = serde_json::json!({
+            "type": "thinking_delta",
+            "thinking": "Let me think about this..."
+        });
+        let delta: ContentBlockDelta = serde_json::from_value(delta_json).unwrap();
+        assert_eq!(delta.block_type, "thinking_delta");
+        assert_eq!(delta.thinking.as_deref(), Some("Let me think about this..."));
+    }
+
+    #[test]
+    fn content_block_thinking_round_trip() {
+        let block = ContentBlock::Thinking {
+            thinking: "reasoning".to_string(),
+            signature: Some("sig123".to_string()),
+        };
+        let value = serde_json::to_value(&block).unwrap();
+        assert_eq!(value["type"], "thinking");
+        assert_eq!(value["thinking"], "reasoning");
+        assert_eq!(value["signature"], "sig123");
+
+        let parsed: ContentBlock = serde_json::from_value(value).unwrap();
+        assert_eq!(parsed, block);
+    }
+
+    #[test]
+    fn citations_config_serializes() {
+        let config = CitationsConfig::enabled();
+        let json = serde_json::to_value(&config).unwrap();
+        assert_eq!(json["enabled"], true);
     }
 }

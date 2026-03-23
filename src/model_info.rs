@@ -63,6 +63,38 @@ const CLAUDE_HAIKU_ALIASES: &[&str] = &[
 const CLAUDE_OPUS_ALIASES: &[&str] =
     &["claude-opus-4-5", "opus-4-5", "opus-45", "publishers/anthropic/models/claude-opus-4-5"];
 
+const CLAUDE_OPUS_46_ALIASES: &[&str] =
+    &["claude-opus-4-6", "opus-4-6", "opus-46", "publishers/anthropic/models/claude-opus-4-6"];
+
+const CLAUDE_SONNET_46_ALIASES: &[&str] = &[
+    "claude-sonnet-4-6",
+    "sonnet-4-6",
+    "sonnet-46",
+    "publishers/anthropic/models/claude-sonnet-4-6",
+];
+
+const CLAUDE_OPUS_41_ALIASES: &[&str] = &[
+    "claude-opus-4-1",
+    "opus-4-1",
+    "opus-41",
+    "publishers/anthropic/models/claude-opus-4-1",
+    "publishers/anthropic/models/claude-opus-4-1@20250805",
+];
+
+const CLAUDE_SONNET_4_ALIASES: &[&str] = &[
+    "claude-sonnet-4",
+    "sonnet-4",
+    "publishers/anthropic/models/claude-sonnet-4",
+    "publishers/anthropic/models/claude-sonnet-4@20250514",
+];
+
+const CLAUDE_OPUS_4_ALIASES: &[&str] = &[
+    "claude-opus-4",
+    "opus-4",
+    "publishers/anthropic/models/claude-opus-4",
+    "publishers/anthropic/models/claude-opus-4@20250514",
+];
+
 const GEMINI_FLASH_ALIASES: &[&str] =
     &["gemini-2-5-flash", "gemini-2.5-flash", "publishers/google/models/gemini-2.5-flash"];
 
@@ -129,6 +161,56 @@ const MODEL_INFO_ENTRIES: &[ModelInfoEntry] = &[
         info: ModelInfo::new(
             "publishers/anthropic/models/claude-opus-4-5",
             "Claude 4.5 Opus",
+            None,
+            Some(200_000),
+            Some(64_000),
+        ),
+    },
+    ModelInfoEntry {
+        aliases: CLAUDE_OPUS_46_ALIASES,
+        info: ModelInfo::new(
+            "publishers/anthropic/models/claude-opus-4-6",
+            "Claude 4.6 Opus",
+            Some(6_000_000),
+            Some(1_000_000),
+            Some(128_000),
+        ),
+    },
+    ModelInfoEntry {
+        aliases: CLAUDE_SONNET_46_ALIASES,
+        info: ModelInfo::new(
+            "publishers/anthropic/models/claude-sonnet-4-6",
+            "Claude 4.6 Sonnet",
+            Some(6_000_000),
+            Some(1_000_000),
+            Some(64_000),
+        ),
+    },
+    ModelInfoEntry {
+        aliases: CLAUDE_OPUS_41_ALIASES,
+        info: ModelInfo::new(
+            "publishers/anthropic/models/claude-opus-4-1",
+            "Claude 4.1 Opus",
+            None,
+            Some(200_000),
+            Some(64_000),
+        ),
+    },
+    ModelInfoEntry {
+        aliases: CLAUDE_SONNET_4_ALIASES,
+        info: ModelInfo::new(
+            "publishers/anthropic/models/claude-sonnet-4",
+            "Claude 4 Sonnet",
+            None,
+            Some(200_000),
+            Some(64_000),
+        ),
+    },
+    ModelInfoEntry {
+        aliases: CLAUDE_OPUS_4_ALIASES,
+        info: ModelInfo::new(
+            "publishers/anthropic/models/claude-opus-4",
+            "Claude 4 Opus",
             None,
             Some(200_000),
             Some(64_000),
@@ -353,6 +435,37 @@ mod tests {
         assert_eq!(info.canonical_id, "publishers/google/models/gemini-embedding-001");
         assert_eq!(info.context_window_tokens, Some(8_192));
         assert!(info.max_output_tokens.is_none());
+    }
+
+    #[test]
+    fn resolves_claude_opus_46_aliases() {
+        let info = get_model_info("claude-opus-4-6").unwrap();
+        assert_eq!(info.canonical_id, "publishers/anthropic/models/claude-opus-4-6");
+        assert_eq!(info.context_window_tokens, Some(1_000_000));
+        assert_eq!(info.max_output_tokens, Some(128_000));
+
+        let short = get_model_info("opus-46").unwrap();
+        assert_eq!(short.canonical_id, info.canonical_id);
+    }
+
+    #[test]
+    fn resolves_claude_sonnet_46_aliases() {
+        let info = get_model_info("claude-sonnet-4-6").unwrap();
+        assert_eq!(info.canonical_id, "publishers/anthropic/models/claude-sonnet-4-6");
+        assert_eq!(info.context_window_tokens, Some(1_000_000));
+        assert_eq!(info.max_output_tokens, Some(64_000));
+    }
+
+    #[test]
+    fn resolves_claude_opus_41_and_4_aliases() {
+        let opus41 = get_model_info("claude-opus-4-1").unwrap();
+        assert_eq!(opus41.canonical_id, "publishers/anthropic/models/claude-opus-4-1");
+
+        let sonnet4 = get_model_info("claude-sonnet-4").unwrap();
+        assert_eq!(sonnet4.canonical_id, "publishers/anthropic/models/claude-sonnet-4");
+
+        let opus4 = get_model_info("claude-opus-4").unwrap();
+        assert_eq!(opus4.canonical_id, "publishers/anthropic/models/claude-opus-4");
     }
 
     #[test]
