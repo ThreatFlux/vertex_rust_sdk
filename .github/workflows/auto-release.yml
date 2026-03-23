@@ -26,6 +26,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  issues: write
   actions: write
 
 env:
@@ -40,6 +41,8 @@ jobs:
       should_release: ${{ steps.check.outputs.should_release }}
       next_version: ${{ steps.version.outputs.next_version }}
       current_version: ${{ steps.version.outputs.current_version }}
+      reason: ${{ steps.check.outputs.reason }}
+      bump_type: ${{ steps.version.outputs.bump_type }}
       target_sha: ${{ steps.target.outputs.sha }}
     steps:
       - name: Checkout
@@ -87,14 +90,19 @@ jobs:
 
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             echo "should_release=true" >> "$GITHUB_OUTPUT"
+            echo "reason=manual" >> "$GITHUB_OUTPUT"
           elif [[ "${{ steps.ci_status.outputs.all_passed }}" != "true" ]]; then
             echo "should_release=false" >> "$GITHUB_OUTPUT"
+            echo "reason=ci_failed" >> "$GITHUB_OUTPUT"
           elif [[ $CHANGES -eq 0 ]]; then
             echo "should_release=false" >> "$GITHUB_OUTPUT"
+            echo "reason=no_changes" >> "$GITHUB_OUTPUT"
           elif [[ $BREAKING_COUNT -gt 0 ]] || [[ $FEAT_COUNT -gt 0 ]] || [[ $FIX_COUNT -gt 0 ]]; then
             echo "should_release=true" >> "$GITHUB_OUTPUT"
+            echo "reason=conventional_commits" >> "$GITHUB_OUTPUT"
           else
             echo "should_release=false" >> "$GITHUB_OUTPUT"
+            echo "reason=no_release_commits" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Determine version
@@ -132,6 +140,7 @@ jobs:
           esac
 
           echo "next_version=$MAJOR.$MINOR.$PATCH" >> "$GITHUB_OUTPUT"
+          echo "bump_type=$BUMP_TYPE" >> "$GITHUB_OUTPUT"
 
   release:
     name: Create Release
