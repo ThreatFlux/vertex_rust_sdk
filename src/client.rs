@@ -530,7 +530,16 @@ fn anthropic_global_model(model_name: &str) -> bool {
 }
 
 fn google_global_model(model_name: &str) -> bool {
-    matches!(normalize_model_key(model_name).as_str(), "gemini-3-pro-preview")
+    matches!(
+        normalize_model_key(model_name).as_str(),
+        "gemini-3-pro-preview"
+            | "gemini-3-1-pro"
+            | "gemini-3-1-pro-preview"
+            | "gemini-3-1-flash"
+            | "gemini-3-1-flash-preview"
+            | "gemini-3-1-flash-lite"
+            | "gemini-3-1-flash-lite-preview"
+    )
 }
 
 fn normalize_model_key(model_name: &str) -> String {
