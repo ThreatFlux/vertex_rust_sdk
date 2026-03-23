@@ -160,6 +160,7 @@ jobs:
 
       - name: Build (cross)
         if: matrix.use_cross
+        shell: bash
         run: |
           if [[ -n "${BINARY_PACKAGE}" ]]; then
             cross build --release --target ${{ matrix.target }} -p "${BINARY_PACKAGE}" --bin "${BINARY_NAME}" --all-features
@@ -169,6 +170,7 @@ jobs:
 
       - name: Build (native)
         if: "!matrix.use_cross"
+        shell: bash
         run: |
           if [[ -n "${BINARY_PACKAGE}" ]]; then
             cargo build --release --target ${{ matrix.target }} -p "${BINARY_PACKAGE}" --bin "${BINARY_NAME}" --all-features
@@ -178,6 +180,7 @@ jobs:
 
       - name: Package (Unix)
         if: runner.os != 'Windows'
+        shell: bash
         run: |
           mkdir -p dist
           cp target/${{ matrix.target }}/release/${BINARY_NAME} dist/
