@@ -265,7 +265,7 @@ impl VertexClient {
         let response = self.embed(model, &request).await?;
         response
             .embedding()
-            .map(|v| v.to_vec())
+            .map(<[f32]>::to_vec)
             .ok_or_else(|| VertexError::generic("Empty embedding response".to_string()))
     }
 }
