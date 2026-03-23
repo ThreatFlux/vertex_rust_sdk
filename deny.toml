@@ -79,7 +79,11 @@ yanked = "warn"
 
 # Ignore specific advisories (add with justification)
 ignore = [
-    # Example: "RUSTSEC-2020-0001", # Reason for ignoring
+    # RSA timing sidechannel (Marvin Attack) - no fix available, used by jsonwebtoken
+    # This SDK does not expose network-observable RSA private key operations beyond local JWT signing helpers.
+    "RUSTSEC-2023-0071",
+    # number_prefix is unmaintained - transitive dependency via indicatif (CLI)
+    "RUSTSEC-2025-0119",
 ]
 
 # =============================================================================
