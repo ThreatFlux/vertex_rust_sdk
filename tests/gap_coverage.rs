@@ -7,10 +7,33 @@ fn manifest_path(file: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(file)
 }
 
+fn load_latest_gap_doc() -> String {
+    let docs_dir = manifest_path("docs");
+    let mut candidates: Vec<(String, PathBuf)> = fs::read_dir(&docs_dir)
+        .expect("docs directory should exist")
+        .filter_map(|entry| {
+            let entry = entry.ok()?;
+            let name = entry.file_name();
+            let name_str = name.to_string_lossy();
+            if name_str.starts_with("gap_analysis_") && name_str.ends_with(".md") {
+                Some((name_str.to_string(), entry.path()))
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    candidates.sort_by(|a, b| a.0.cmp(&b.0));
+    let (_, path) = candidates
+        .pop()
+        .expect("at least one gap analysis doc should be present");
+
+    fs::read_to_string(path).expect("gap analysis doc should be readable")
+}
+
 #[test]
 fn gap_analysis_notes_expected_gaps() {
-    let doc = fs::read_to_string(manifest_path("docs/gap_analysis_mar_2026.md"))
-        .expect("gap analysis doc should exist");
+    let doc = load_latest_gap_doc();
 
     // Model lineage
     assert!(
