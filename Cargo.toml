@@ -1,0 +1,133 @@
+[package]
+name = "threatflux-vertex-rust-sdk"
+version = "0.4.0"
+edition = "2021"
+rust-version = "1.94"
+authors = ["ThreatFlux Team"]
+description = "Vertex AI SDK for ThreatFlux AI"
+license = "MIT"
+repository = "https://github.com/ThreatFlux/vertex_rust_sdk"
+readme = "README.md"
+keywords = ["vertex-ai", "google-cloud", "gemini", "ai", "ml"]
+categories = ["api-bindings", "web-programming::http-client"]
+
+[dependencies]
+# HTTP Client
+reqwest = { version = "0.13.1", default-features = false, features = ["form", "json", "query", "rustls", "stream"] }
+# Async runtime
+tokio = { version = "1.0", features = ["full"] }
+tokio-stream = "0.1"
+# JSON serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+# Error handling
+anyhow = "1.0"
+thiserror = "2.0"
+# Time handling
+chrono = { version = "0.4", features = ["serde"] }
+# UUID generation
+uuid = { version = "1.0", features = ["v4"] }
+# Logging
+log = "0.4.29"
+env_logger = "0.11.8"
+tracing = "0.1"
+# OAuth2 and JWT
+jsonwebtoken = { version = "10.3", features = ["rust_crypto"] }
+# Server-sent events
+futures = "0.3"
+futures-util = "0.3"
+# Google Cloud authentication
+gcp_auth = "0.12.6"
+# Additional utilities
+bytes = "1.0"
+async-trait = "0.1.89"
+base64 = "0.22"
+toml = "0.8"
+dotenvy = "0.15.7"
+config = "0.15.19"
+url = "2.5"
+http = "1.0"
+eventsource-stream = "0.2.3"
+mime = "0.3"
+# CLI (optional, for bin targets)
+clap = { version = "4.5.54", features = ["derive"], optional = true }
+colored = { version = "3.0.0", optional = true }
+indicatif = { version = "0.17", optional = true }
+
+[dev-dependencies]
+tokio-test = "0.4"
+mockito = "1.7.1"
+tempfile = "3.0"
+criterion = { version = "0.5", features = ["html_reports"] }
+assert_cmd = "2.0"
+predicates = "3.1"
+once_cell = "1.19"
+rand = "0.8"
+rsa = "0.9"
+
+[features]
+default = ["blocking", "cli"]
+blocking = ["reqwest/blocking"]
+native-tls = ["reqwest/native-tls-vendored"]
+rustls-tls = ["reqwest/rustls"]
+cli = ["clap", "colored", "indicatif"]
+examples = []
+integration-tests = []
+
+[lib]
+name = "threatflux_vertex_rust_sdk"
+path = "src/lib.rs"
+
+[[bin]]
+name = "vertex"
+path = "src/bin/vertex.rs"
+required-features = ["cli"]
+
+[[bin]]
+name = "vertex-test"
+path = "src/bin/vertex-test.rs"
+required-features = ["cli"]
+
+[[bin]]
+name = "vertex-chat"
+path = "src/bin/chat.rs"
+required-features = ["cli"]
+
+[[example]]
+name = "basic_generation"
+path = "examples/basic_generation.rs"
+required-features = ["examples"]
+
+[[example]]
+name = "streaming"
+path = "examples/streaming/main.rs"
+required-features = ["examples"]
+
+[[example]]
+name = "function_calling"
+path = "examples/function_calling/main.rs"
+required-features = ["examples"]
+
+[[example]]
+name = "token_counting"
+path = "examples/token_counting.rs"
+required-features = ["examples"]
+
+[[example]]
+name = "chat"
+path = "examples/chat.rs"
+required-features = ["examples"]
+
+[[example]]
+name = "context_caching"
+path = "examples/context_caching/main.rs"
+required-features = ["examples"]
+
+[[test]]
+name = "integration_tests"
+path = "tests/integration_tests.rs"
+required-features = ["integration-tests"]
+
+[[bench]]
+name = "benchmarks"
+harness = false

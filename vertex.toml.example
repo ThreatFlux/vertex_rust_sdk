@@ -1,0 +1,55 @@
+# Example configuration file for Vertex Rust SDK
+# Copy this to vertex.toml and customize for your project
+
+[project]
+id = "your-gcp-project-id"
+location = "us-central1"
+
+[auth]
+# Authentication method: "adc", "service_account_file", "service_account_json", or "access_token"
+method = "adc"
+
+# Uncomment and set if using service account file
+# service_account_file = "/path/to/service-account-key.json"
+
+# Uncomment and set if using access token (for development/testing only)
+# access_token = "your-access-token"
+
+[models]
+# Default model to use
+default = "gemini-2.0-flash-001"
+
+# Model aliases for convenience
+[models.aliases]
+flash = "gemini-2.0-flash-001"
+pro = "gemini-1.5-pro"
+vision = "gemini-1.5-pro"
+
+[generation]
+# Default generation parameters
+temperature = 0.7
+max_output_tokens = 2048
+top_p = 1.0
+top_k = 32
+candidate_count = 1
+
+[client]
+# HTTP timeout in seconds
+timeout = 120
+
+# User agent override (optional)
+# user_agent = "MyApp/1.0"
+
+[logging]
+# Log level: "trace", "debug", "info", "warn", "error"
+level = "info"
+
+# Log format: "compact", "full", "pretty", "json"
+format = "compact"
+
+[safety]
+# Default safety settings
+hate_speech_threshold = "BLOCK_MEDIUM_AND_ABOVE"
+dangerous_content_threshold = "BLOCK_MEDIUM_AND_ABOVE"
+harassment_threshold = "BLOCK_MEDIUM_AND_ABOVE"
+sexually_explicit_threshold = "BLOCK_MEDIUM_AND_ABOVE"
