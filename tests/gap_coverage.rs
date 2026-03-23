@@ -9,7 +9,7 @@ fn manifest_path(file: &str) -> PathBuf {
 
 fn latest_gap_doc_path() -> PathBuf {
     let docs_dir = manifest_path("docs");
-    let candidates: Vec<(String, PathBuf)> = fs::read_dir(&docs_dir)
+    fs::read_dir(&docs_dir)
         .expect("docs directory should exist")
         .filter_map(|entry| {
             let entry = entry.ok()?;
@@ -21,10 +21,6 @@ fn latest_gap_doc_path() -> PathBuf {
                 None
             }
         })
-        .collect();
-
-    candidates
-        .into_iter()
         .max_by(|a, b| a.0.cmp(&b.0))
         .map(|(_, path)| path)
         .expect("at least one gap analysis doc should be present")
