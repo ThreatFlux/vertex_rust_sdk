@@ -72,6 +72,33 @@ const GEMINI_PRO_ALIASES: &[&str] =
 const GEMINI_3_PRO_PREVIEW_ALIASES: &[&str] =
     &["gemini-3-pro-preview", "publishers/google/models/gemini-3-pro-preview"];
 
+const GEMINI_3_1_PRO_ALIASES: &[&str] = &[
+    "gemini-3-1-pro",
+    "gemini-3.1-pro",
+    "gemini-3-1-pro-preview",
+    "gemini-3.1-pro-preview",
+    "publishers/google/models/gemini-3.1-pro",
+];
+
+const GEMINI_3_1_FLASH_ALIASES: &[&str] = &[
+    "gemini-3-1-flash",
+    "gemini-3.1-flash",
+    "gemini-3-1-flash-preview",
+    "gemini-3.1-flash-preview",
+    "publishers/google/models/gemini-3.1-flash",
+];
+
+const GEMINI_3_1_FLASH_LITE_ALIASES: &[&str] = &[
+    "gemini-3-1-flash-lite",
+    "gemini-3.1-flash-lite",
+    "gemini-3-1-flash-lite-preview",
+    "gemini-3.1-flash-lite-preview",
+    "publishers/google/models/gemini-3.1-flash-lite",
+];
+
+const GEMINI_EMBEDDING_ALIASES: &[&str] =
+    &["gemini-embedding-001", "publishers/google/models/gemini-embedding-001"];
+
 const MODEL_INFO_ENTRIES: &[ModelInfoEntry] = &[
     ModelInfoEntry {
         aliases: CLAUDE_SONNET_ALIASES,
@@ -135,6 +162,46 @@ const MODEL_INFO_ENTRIES: &[ModelInfoEntry] = &[
             None,
             Some(1_000_000),
             Some(64_000),
+        ),
+    },
+    ModelInfoEntry {
+        aliases: GEMINI_3_1_PRO_ALIASES,
+        info: ModelInfo::new(
+            "publishers/google/models/gemini-3.1-pro",
+            "Gemini 3.1 Pro",
+            None,
+            Some(2_000_000),
+            Some(64_000),
+        ),
+    },
+    ModelInfoEntry {
+        aliases: GEMINI_3_1_FLASH_ALIASES,
+        info: ModelInfo::new(
+            "publishers/google/models/gemini-3.1-flash",
+            "Gemini 3.1 Flash",
+            None,
+            Some(1_000_000),
+            Some(8_192),
+        ),
+    },
+    ModelInfoEntry {
+        aliases: GEMINI_3_1_FLASH_LITE_ALIASES,
+        info: ModelInfo::new(
+            "publishers/google/models/gemini-3.1-flash-lite",
+            "Gemini 3.1 Flash Lite",
+            None,
+            Some(1_000_000),
+            Some(8_192),
+        ),
+    },
+    ModelInfoEntry {
+        aliases: GEMINI_EMBEDDING_ALIASES,
+        info: ModelInfo::new(
+            "publishers/google/models/gemini-embedding-001",
+            "Gemini Embedding 001",
+            None,
+            Some(8_192),
+            None,
         ),
     },
 ];
@@ -254,6 +321,38 @@ mod tests {
 
         let short = get_model_info("gemini-3-pro-preview").unwrap();
         assert_eq!(short.canonical_id, info.canonical_id);
+    }
+
+    #[test]
+    fn resolves_gemini_3_1_pro_aliases() {
+        let info = get_model_info("gemini-3.1-pro").unwrap();
+        assert_eq!(info.canonical_id, "publishers/google/models/gemini-3.1-pro");
+        assert_eq!(info.context_window_tokens, Some(2_000_000));
+        assert_eq!(info.max_output_tokens, Some(64_000));
+
+        let dashed = get_model_info("gemini-3-1-pro").unwrap();
+        assert_eq!(dashed.canonical_id, info.canonical_id);
+
+        let preview = get_model_info("gemini-3.1-pro-preview").unwrap();
+        assert_eq!(preview.canonical_id, info.canonical_id);
+    }
+
+    #[test]
+    fn resolves_gemini_3_1_flash_aliases() {
+        let info = get_model_info("gemini-3.1-flash").unwrap();
+        assert_eq!(info.canonical_id, "publishers/google/models/gemini-3.1-flash");
+        assert_eq!(info.context_window_tokens, Some(1_000_000));
+
+        let lite = get_model_info("gemini-3.1-flash-lite").unwrap();
+        assert_eq!(lite.canonical_id, "publishers/google/models/gemini-3.1-flash-lite");
+    }
+
+    #[test]
+    fn resolves_gemini_embedding_aliases() {
+        let info = get_model_info("gemini-embedding-001").unwrap();
+        assert_eq!(info.canonical_id, "publishers/google/models/gemini-embedding-001");
+        assert_eq!(info.context_window_tokens, Some(8_192));
+        assert!(info.max_output_tokens.is_none());
     }
 
     #[test]

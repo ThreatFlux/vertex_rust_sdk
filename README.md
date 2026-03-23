@@ -172,7 +172,7 @@ let client = VertexClientBuilder::new("project-id", "us-central1")
 use tokio_stream::StreamExt;
 
 let request = GenerateContentRequest::new("Tell me a long story");
-let mut stream = client.stream_generate_content("gemini-2.0-flash-001", &request).await?;
+let mut stream = client.stream_generate_content("gemini-2.5-flash", &request).await?;
 
 while let Some(chunk) = stream.next().await {
     match chunk {
@@ -219,7 +219,7 @@ let request = GenerateContentRequest::new("What's the weather in Boston?")
         ..GenerationConfig::default()
     });
 
-let response = client.generate_content("gemini-2.0-flash-001", &request).await?;
+let response = client.generate_content("gemini-2.5-flash", &request).await?;
 
 // Check for function calls
 for function_call in response.function_calls() {
@@ -305,7 +305,7 @@ let messages = vec![
     ChatMessage::user("Hello!"),
 ];
 
-let response = client.chat("gemini-2.0-flash-001", messages).await?;
+let response = client.chat("gemini-2.5-flash", messages).await?;
 println!("Assistant: {}", response);
 ```
 
@@ -315,7 +315,7 @@ println!("Assistant: {}", response);
 use threatflux_vertex_rust_sdk::CountTokensRequest;
 
 let request = CountTokensRequest::new("Count tokens in this text");
-let response = client.count_tokens("gemini-2.0-flash-001", &request).await?;
+let response = client.count_tokens("gemini-2.5-flash", &request).await?;
 println!("Token count: {}", response.total_tokens);
 ```
 
@@ -330,11 +330,14 @@ println!("Token count: {}", response.total_tokens);
 
 ### Supported Models
 
-- `gemini-2.0-flash-001` (latest)
-- `gemini-1.5-pro`
-- `gemini-1.5-flash`
-- `gemini-pro`
-- And more...
+- `gemini-3.1-pro` — 2M context, 64K output (Preview)
+- `gemini-3.1-flash` — 1M context, 8K output (Preview)
+- `gemini-3.1-flash-lite` — 1M context, 8K output (Preview)
+- `gemini-3-pro-preview` — 1M context, 64K output
+- `gemini-2.5-pro` — 2M context, 8K output
+- `gemini-2.5-flash` — 1M context, 8K output
+- `gemini-embedding-001` — text/vision embeddings
+- `claude-sonnet-4-5`, `claude-haiku-4-5`, `claude-opus-4-5` — via Anthropic on Vertex
 
 ### Supported Locations
 

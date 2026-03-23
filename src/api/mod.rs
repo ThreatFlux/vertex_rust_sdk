@@ -2,6 +2,7 @@
 
 pub mod chat;
 pub mod claude;
+pub mod embeddings;
 pub mod functions;
 pub mod generate;
 pub mod models;

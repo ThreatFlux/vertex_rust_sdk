@@ -6,9 +6,10 @@ This note captures the latest Vertex AI model lineup and highlights gaps between
 
 - Gemini 2.5 Flash, Gemini 2.5 Pro
 - Gemini 3 Pro Preview
+- Gemini 3.1 Pro, Gemini 3.1 Flash, Gemini 3.1 Flash Lite (Preview)
 - Claude 4.5 Sonnet, Haiku, Opus
+- Gemini Embedding 001 (text/vision embeddings via `EmbeddingsApi`)
 - Multimodal input (text, image/video/pdf via inline or file parts), streaming, thinking mode, function calling, grounding, code execution, context caching
-- **Not present:** embeddings endpoints, vector search helpers, or newer Gemini 3.1 series metadata
 
 ## Latest Vertex AI models & features
 
@@ -17,14 +18,17 @@ This note captures the latest Vertex AI model lineup and highlights gaps between
 - **Lifecycle guidance** — Google recommends migrating from 2.5 to 3.x models as they become generally available.[^4]
 - **Embeddings** — `gemini-embedding-001` supersedes prior `text-embedding-004`/`005` models in the Vertex text embeddings API.[^5]
 
-## Identified gaps for this SDK
+## Resolved gaps
 
-1. **Model metadata**: `src/model_info.rs` only tracks Gemini 2.5 and Gemini 3 Pro Preview. Add Gemini 3.1 Pro/Flash/Flash Lite identifiers (and context/output limits) so lookups, validation, and CLI listing stay current.
-2. **Quick start defaults**: README examples still reference the retired `gemini-2.0` family. Update samples to a supported default (e.g., `gemini-2.5-flash`) until 3.1 is added.
-3. **Embeddings client**: No wrapper for the Vertex text/vision embeddings API (now anchored on `gemini-embedding-001`). Adding a small `EmbeddingsApi` module plus request/response types would close this gap and enable vector-search flows.
-4. **Vector/RAG helpers**: There is no convenience integration for Vertex AI Vector Search/RAG engine. Consider thin helpers (index upsert/query) paired with embeddings once (3) exists.
+1. **Model metadata** (resolved): `src/model_info.rs` now tracks Gemini 3.1 Pro, Flash, Flash Lite, and `gemini-embedding-001` with context/output limits and aliases.
+2. **Quick start defaults** (resolved): README examples updated from the retired `gemini-2.0` family to `gemini-2.5-flash`.
+3. **Embeddings client** (resolved): `EmbeddingsApi` module (`src/api/embeddings.rs`) wraps the Vertex predict endpoint for `gemini-embedding-001` with request/response types, batch support, task types, and output dimensionality control.
 
-The above items are bounded in scope and keep the SDK aligned with the March 2026 Vertex AI surface while preserving existing behavior for Gemini 2.5/3.0 users.
+## Remaining gaps
+
+1. **Vector/RAG helpers**: There is no convenience integration for Vertex AI Vector Search/RAG engine. Consider thin helpers (index upsert/query) paired with embeddings once the embeddings API has been validated in production.
+
+The above items keep the SDK aligned with the March 2026 Vertex AI surface while preserving existing behavior for Gemini 2.5/3.0 users.
 
 <!-- Sources -->
 [^1]: https://docs.cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/3-1-pro
