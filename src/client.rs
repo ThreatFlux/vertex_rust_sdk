@@ -500,13 +500,23 @@ fn anthropic_version_override(descriptor: &ModelDescriptor) -> Option<String> {
     }
 
     match normalize_model_key(raw_model).as_str() {
+        // 4.5 family
         "claude-sonnet-4-5" | "claude-sonnet-45" | "sonnet-4-5" | "sonnet-45" => {
             Some(format!("{raw_model}@20250929"))
         }
         "claude-opus-4-5" | "claude-opus-45" | "opus-4-5" | "opus-45" => {
             Some(format!("{raw_model}@20251101"))
         }
-        // Keep other Anthropics unchanged.
+        // 4.1 family
+        "claude-opus-4-1" | "claude-opus-41" | "opus-4-1" | "opus-41" => {
+            Some(format!("{raw_model}@20250805"))
+        }
+        // 4.0 family
+        "claude-sonnet-4" | "sonnet-4" | "claude-opus-4" | "opus-4" => {
+            Some(format!("{raw_model}@20250514"))
+        }
+        // 4.6 models use bare IDs — no @date suffix.
+        // All other Anthropic models pass through unchanged.
         _ => None,
     }
 }
@@ -514,6 +524,7 @@ fn anthropic_version_override(descriptor: &ModelDescriptor) -> Option<String> {
 fn anthropic_global_model(model_name: &str) -> bool {
     matches!(
         normalize_model_key(model_name).as_str(),
+        // 4.5 family
         "claude-haiku-4-5"
             | "claude-haiku-45"
             | "haiku-4-5"
@@ -526,6 +537,24 @@ fn anthropic_global_model(model_name: &str) -> bool {
             | "claude-opus-45"
             | "opus-4-5"
             | "opus-45"
+            // 4.6 family
+            | "claude-opus-4-6"
+            | "claude-opus-46"
+            | "opus-4-6"
+            | "opus-46"
+            | "claude-sonnet-4-6"
+            | "claude-sonnet-46"
+            | "sonnet-4-6"
+            | "sonnet-46"
+            // 4.1 / 4.0 family
+            | "claude-opus-4-1"
+            | "claude-opus-41"
+            | "opus-4-1"
+            | "opus-41"
+            | "claude-sonnet-4"
+            | "sonnet-4"
+            | "claude-opus-4"
+            | "opus-4"
     )
 }
 
@@ -654,6 +683,51 @@ mod tests {
         let descriptor =
             ModelDescriptor::parse("publishers/anthropic/models/claude-opus-4-5").unwrap();
         assert_eq!(effective_model_name(&descriptor), "claude-opus-4-5@20251101");
+    }
+
+    #[test]
+    fn opus_46_uses_bare_id_no_version_suffix() {
+        let descriptor =
+            ModelDescriptor::parse("publishers/anthropic/models/claude-opus-4-6").unwrap();
+        assert_eq!(effective_model_name(&descriptor), "claude-opus-4-6");
+    }
+
+    #[test]
+    fn sonnet_46_uses_bare_id_no_version_suffix() {
+        let descriptor =
+            ModelDescriptor::parse("publishers/anthropic/models/claude-sonnet-4-6").unwrap();
+        assert_eq!(effective_model_name(&descriptor), "claude-sonnet-4-6");
+    }
+
+    #[test]
+    fn opus_41_gets_version_suffix() {
+        let descriptor =
+            ModelDescriptor::parse("publishers/anthropic/models/claude-opus-4-1").unwrap();
+        assert_eq!(effective_model_name(&descriptor), "claude-opus-4-1@20250805");
+    }
+
+    #[test]
+    fn sonnet_4_and_opus_4_get_version_suffix() {
+        let s4 = ModelDescriptor::parse("publishers/anthropic/models/claude-sonnet-4").unwrap();
+        assert_eq!(effective_model_name(&s4), "claude-sonnet-4@20250514");
+
+        let o4 = ModelDescriptor::parse("publishers/anthropic/models/claude-opus-4").unwrap();
+        assert_eq!(effective_model_name(&o4), "claude-opus-4@20250514");
+    }
+
+    #[test]
+    fn claude_46_models_use_global_location() {
+        assert!(anthropic_global_model("claude-opus-4-6"));
+        assert!(anthropic_global_model("opus-4.6"));
+        assert!(anthropic_global_model("claude-sonnet-4-6"));
+        assert!(anthropic_global_model("sonnet-4.6"));
+    }
+
+    #[test]
+    fn claude_41_and_4_models_use_global_location() {
+        assert!(anthropic_global_model("claude-opus-4-1"));
+        assert!(anthropic_global_model("claude-sonnet-4"));
+        assert!(anthropic_global_model("claude-opus-4"));
     }
 
     #[test]

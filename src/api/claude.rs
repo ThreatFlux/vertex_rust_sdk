@@ -1,6 +1,6 @@
 use crate::claude::{
-    ClaudeSseParser, MessageRequest, MessageResponse, RequestTool, StreamEvent,
-    CLAUDE_LONG_CONTEXT_BETA_TAG, CLAUDE_WEB_SEARCH_BETA_TAG,
+    ClaudeSseParser, MessageRequest, MessageResponse, RequestTool, StreamEvent, WebSearchToolType,
+    CLAUDE_LONG_CONTEXT_BETA_TAG, CLAUDE_WEB_SEARCH_BETA_TAG, CLAUDE_WEB_SEARCH_V2_BETA_TAG,
 };
 use crate::client::VertexClient;
 use crate::error::{Result, VertexError};
@@ -175,8 +175,14 @@ fn beta_header_value(request: &MessageRequest) -> Option<String> {
         }
     }
 
-    if uses_web_search_tool(request) {
-        maybe_push_beta_tag(&mut tags, CLAUDE_WEB_SEARCH_BETA_TAG.to_string());
+    match web_search_tool_version(request) {
+        Some(WebSearchToolType::WebSearch) => {
+            maybe_push_beta_tag(&mut tags, CLAUDE_WEB_SEARCH_BETA_TAG.to_string());
+        }
+        Some(WebSearchToolType::WebSearchV2) => {
+            maybe_push_beta_tag(&mut tags, CLAUDE_WEB_SEARCH_V2_BETA_TAG.to_string());
+        }
+        None => {}
     }
 
     if tags.is_empty() {
@@ -200,6 +206,12 @@ fn normalize_beta_feature(feature: &str) -> Option<String> {
         return Some(CLAUDE_WEB_SEARCH_BETA_TAG.to_string());
     }
 
+    if trimmed.eq_ignore_ascii_case("web-search-v2")
+        || trimmed.eq_ignore_ascii_case(CLAUDE_WEB_SEARCH_V2_BETA_TAG)
+    {
+        return Some(CLAUDE_WEB_SEARCH_V2_BETA_TAG.to_string());
+    }
+
     if trimmed.eq_ignore_ascii_case("context-1m")
         || trimmed.eq_ignore_ascii_case(CLAUDE_LONG_CONTEXT_BETA_TAG)
     {
@@ -215,11 +227,13 @@ fn maybe_push_beta_tag(tags: &mut Vec<String>, candidate: String) {
     }
 }
 
-fn uses_web_search_tool(request: &MessageRequest) -> bool {
-    request
-        .tools
-        .as_ref()
-        .is_some_and(|tools| tools.iter().any(|tool| matches!(tool, RequestTool::WebSearch(_))))
+fn web_search_tool_version(request: &MessageRequest) -> Option<WebSearchToolType> {
+    request.tools.as_ref().and_then(|tools| {
+        tools.iter().find_map(|tool| match tool {
+            RequestTool::WebSearch(ws) => Some(ws.tool_type.clone()),
+            RequestTool::Function(_) => None,
+        })
+    })
 }
 
 #[cfg(test)]
