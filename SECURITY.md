@@ -1,12 +1,11 @@
 # Security Policy
 
-This repository is a template. If you generate a new repository from it, replace any remaining placeholders and update the repository-specific contact and advisory links before the first release.
-
 ## Supported Versions
 
 | Version | Supported |
 | ------- | --------- |
-| 0.3.x   | :white_check_mark: |
+| 0.6.x   | :white_check_mark: |
+| < 0.6   | :x: |
 
 ## Reporting a Vulnerability
 
@@ -15,7 +14,7 @@ This repository is a template. If you generate a new repository from it, replace
 ### How to Report
 
 1. **Email**: Send details to security@threatflux.ai
-2. **GitHub Security Advisories**: Use your repository Security tab to report privately
+2. **GitHub Security Advisories**: Use the repository [Security tab](https://github.com/ThreatFlux/vertex_rust_sdk/security/advisories) to report privately
 
 ### What to Include
 

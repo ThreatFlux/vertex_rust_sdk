@@ -1,88 +1,50 @@
+<div align="center">
+
 # ThreatFlux Vertex Rust SDK
 
-A comprehensive Rust SDK for Google Cloud Vertex AI API, providing access to Gemini models and other AI services.
-
-[![Crates.io](https://img.shields.io/crates/v/threatflux-vertex-rust-sdk.svg)](https://crates.io/crates/threatflux-verte
-x-rust-sdk)
+[![CI](https://github.com/ThreatFlux/vertex_rust_sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/ThreatFlux/vertex_rust_sdk/actions/workflows/ci.yml)
+[![Security](https://github.com/ThreatFlux/vertex_rust_sdk/actions/workflows/security.yml/badge.svg)](https://github.com/ThreatFlux/vertex_rust_sdk/actions/workflows/security.yml)
+[![Crates.io](https://img.shields.io/crates/v/threatflux-vertex-rust-sdk.svg)](https://crates.io/crates/threatflux-vertex-rust-sdk)
 [![Documentation](https://docs.rs/threatflux-vertex-rust-sdk/badge.svg)](https://docs.rs/threatflux-vertex-rust-sdk)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Rust](https://img.shields.io/badge/rust-1.94%2B-orange.svg)](https://www.rust-lang.org)
 
-## Features
+**A comprehensive Rust SDK for Google Cloud Vertex AI — Gemini models, Claude on Vertex, streaming, function calling, and more.**
 
-- **Authentication**: OAuth2, Service Account, and Application Default Credentials
-- **Gemini Models**: Content generation with streaming and non-streaming support
-- **Function Calling**: Tool/function calling capabilities
-- **Token Counting**: Count tokens in content
-- **Chat Completions**: Multi-turn conversations
-- **CLI Interface**: Command-line tool for easy interaction
-- **Async/Await**: Built with Tokio for high-performance async operations
-- **Model coverage notes**: See [`docs/gap_analysis_mar_2026.md`](docs/gap_analysis_mar_2026.md) for the latest Vertex AI model/support gaps.
+[Quick Start](#quick-start) · [Features](#features) · [Documentation](https://docs.rs/threatflux-vertex-rust-sdk) · [Contributing](CONTRIBUTING.md)
 
-## Repository
+</div>
 
-This repository publishes the standalone Vertex AI SDK extracted from the original MIT-licensed `ThreatFlux/core`
-crate. It remains the shared Vertex/Gemini client used by the broader ThreatFlux stack, but it now has its own release
-and CI lifecycle.
+---
 
-## Core packages
+Async Rust client for the Google Cloud Vertex AI API built on `reqwest` and `tokio`. Supports Gemini content generation, Claude on Vertex (Anthropic), streaming, function calling, embeddings, token counting, and multi-turn chat — with optional CLI binaries.
 
-- `reqwest` + `tokio` + `tokio-stream`: async HTTP client and streaming foundations.
-- `serde`, `serde_json`, `bytes`: typed request/response structures and payload handling.
-- `gcp_auth`, `jsonwebtoken`, `base64`: Google Cloud authentication providers and JWT helpers.
-- `anyhow`, `thiserror`, `futures`, `async-trait`: ergonomic error handling and trait-based abstractions.
-- `clap`, `colored`, `indicatif`: optional CLI feature set backing the bundled binaries.
+## Table of Contents
 
-## Crate layout
-
-```text
-.
-├── src/
-│   ├── lib.rs               # Public client exports
-│   ├── client.rs            # HTTP client + request builders
-│   ├── auth.rs              # Service account + ADC helpers
-│   ├── models.rs            # Generated request/response structs
-│   ├── builders.rs          # Request builder helpers
-│   ├── cache.rs             # Response caching
-│   ├── config.rs            # SDK configuration
-│   ├── error.rs             # Error types
-│   ├── media.rs             # Media upload/download helpers
-│   ├── model_descriptor.rs  # Model descriptor types
-│   ├── model_info.rs        # Model metadata and info
-│   ├── streaming.rs         # Streaming abstractions
-│   ├── streaming_support.rs # Streaming support utilities
-│   ├── api/                 # API endpoint modules
-│   ├── chat_core/           # Core chat/conversation logic
-│   ├── claude/              # Claude-on-Vertex helpers
-│   ├── types/               # Shared enums + data models
-│   └── bin/                 # CLI binaries (`vertex`, `vertex-test`, `vertex-chat`)
-├── examples/                # End-to-end code samples
-├── tests/                   # Integration tests (require --features integration-tests)
-├── benches/                 # Criterion benchmarks
-└── CLI.md                   # Additional CLI usage notes
-```
-
-## Installation
-
-Add this to your `Cargo.toml`:
-
-```toml
-[dependencies]
-threatflux-vertex-rust-sdk = "0.4"
-tokio = { version = "1.0", features = ["full"] }
-```
+- [Quick Start](#quick-start)
+- [Features](#features)
+- [Installation](#installation)
+- [Authentication](#authentication)
+- [Usage](#usage)
+- [Supported Models](#supported-models)
+- [CLI Usage](#cli-usage)
+- [Configuration](#configuration)
+- [Architecture](#architecture)
+- [Error Handling](#error-handling)
+- [Examples](#examples)
+- [Contributing](#contributing)
+- [Security](#security)
+- [License](#license)
 
 ## Quick Start
-
-### Library Usage
 
 ```rust
 use threatflux_vertex_rust_sdk::{VertexClient, GenerateContentRequest};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Create client (uses Application Default Credentials)
     let client = VertexClient::new("your-project-id", "us-central1").await?;
 
-    // Generate content
     let request = GenerateContentRequest::new("Why is the sky blue?");
     let response = client.generate_content("gemini-2.5-flash", &request).await?;
 
@@ -94,42 +56,45 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-### CLI Usage
+<p align="right"><a href="#table-of-contents">back to top</a></p>
 
-Install the CLI:
+## Features
 
-```bash
-cargo install threatflux-vertex-rust-sdk --features=cli
+- **Authentication** — OAuth2, Service Account, and Application Default Credentials
+- **Gemini Models** — Content generation with streaming and non-streaming support
+- **Claude on Vertex** — Anthropic Claude models via Vertex AI (Haiku, Sonnet, Opus)
+- **Function Calling** — Tool/function calling capabilities
+- **Embeddings** — Text and vision embeddings with task types and dimensionality control
+- **Token Counting** — Count tokens in content before sending requests
+- **Chat** — Multi-turn conversations with context management
+- **Streaming** — SSE-based streaming for both Gemini and Claude responses
+- **CLI** — Command-line tools for quick interaction (`vertex`, `vertex-chat`, `vertex-test`)
+- **Async/Await** — Built with Tokio for high-performance async operations
+
+<p align="right"><a href="#table-of-contents">back to top</a></p>
+
+## Installation
+
+Add this to your `Cargo.toml`:
+
+```toml
+[dependencies]
+threatflux-vertex-rust-sdk = "0.6"
+tokio = { version = "1.0", features = ["full"] }
 ```
 
-Set up authentication:
+### Feature Flags
 
-```bash
-# Using gcloud CLI
-gcloud auth application-default login
+| Flag | Default | Description |
+|------|---------|-------------|
+| `blocking` | Yes | Enables `reqwest/blocking` for synchronous usage |
+| `cli` | Yes | Enables CLI binaries (`clap`, `colored`, `indicatif`) |
+| `native-tls` | No | Use native TLS backend |
+| `rustls-tls` | No | Use rustls TLS backend |
+| `integration-tests` | No | Gates integration test compilation |
+| `examples` | No | Gates example compilation |
 
-# Or set service account key
-export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account-key.json"
-```
-
-Use the CLI:
-
-```bash
-# Generate content
-vertex -p your-project-id generate "Explain quantum computing"
-
-# Streaming generation
-vertex -p your-project-id generate "Write a poem" --stream
-
-# Count tokens
-vertex -p your-project-id tokens "How many tokens is this?"
-
-# Interactive chat
-vertex -p your-project-id chat
-
-# Test authentication
-vertex -p your-project-id test auth
-```
+<p align="right"><a href="#table-of-contents">back to top</a></p>
 
 ## Authentication
 
@@ -164,7 +129,19 @@ let client = VertexClientBuilder::new("project-id", "us-central1")
     .await?;
 ```
 
-## Advanced Usage
+<p align="right"><a href="#table-of-contents">back to top</a></p>
+
+## Usage
+
+### Content Generation
+
+```rust
+use threatflux_vertex_rust_sdk::{VertexClient, GenerateContentRequest};
+
+let client = VertexClient::new("your-project-id", "us-central1").await?;
+let request = GenerateContentRequest::new("Explain quantum computing");
+let response = client.generate_content("gemini-2.5-flash", &request).await?;
+```
 
 ### Streaming Responses
 
@@ -192,7 +169,6 @@ while let Some(chunk) = stream.next().await {
 use threatflux_vertex_rust_sdk::{Tool, FunctionDeclaration, GenerationConfig};
 use serde_json::json;
 
-// Define a function
 let weather_function = FunctionDeclaration {
     name: "get_weather".to_string(),
     description: "Get current weather for a location".to_string(),
@@ -215,24 +191,18 @@ let tool = Tool {
 let request = GenerateContentRequest::new("What's the weather in Boston?")
     .with_tools(vec![tool])
     .with_generation_config(GenerationConfig {
-        temperature: Some(0.0), // Use 0 for function calling
+        temperature: Some(0.0),
         ..GenerationConfig::default()
     });
 
 let response = client.generate_content("gemini-2.5-flash", &request).await?;
 
-// Check for function calls
 for function_call in response.function_calls() {
-    println!("Function called: {}", function_call.name);
-    println!("Arguments: {:?}", function_call.args);
+    println!("Function: {} Args: {:?}", function_call.name, function_call.args);
 }
 ```
 
-### Claude Haiku 4.5 on Vertex (Anthropic)
-
-Claude Haiku 4.5 delivers near-frontier quality with 200k token input windows, 64k token outputs, and Anthropic's
-extended thinking capabilities. It is a great default choice for latency-sensitive workflows and high-volume assistants,
-while higher-tier Claude variants remain available for heavier reasoning.
+### Claude on Vertex (Anthropic)
 
 ```rust,no_run
 use futures::StreamExt;
@@ -248,32 +218,22 @@ let config = Config {
 
 let client = VertexClient::new(config).await?;
 
-// Non-streaming invocation
+// Non-streaming
 let request = MessageRequest::new()
     .max_tokens(1024)
     .system("You are a concise assistant")
     .add_user_message("Summarise the latest release notes.")
     .add_web_search_tool(WebSearchTool::new().with_max_uses(Some(3)));
 
-let response = client
-    .claude_message("claude-haiku-4-5", &request)
-    .await?;
-
+let response = client.claude_message("claude-haiku-4-5", &request).await?;
 println!("Claude: {}", response.text());
 
-// Responses include citation metadata when the web search tool is enabled
-if let Some(content) = response.content.first() {
-    println!("Citations: {:?}", content);
-}
-
-// Streaming with optional beta/memory parameters
+// Streaming
 let streaming_request = MessageRequest::new()
     .with_param("memory", json!({"store": true}))
-    .add_user_message("Draft an executive summary for the attached PDF.");
+    .add_user_message("Draft an executive summary.");
 
-let mut stream = client
-    .claude_stream("claude-haiku-4-5", &streaming_request)
-    .await?;
+let mut stream = client.claude_stream("claude-haiku-4-5", &streaming_request).await?;
 
 while let Some(event) = stream.next().await {
     match event? {
@@ -289,11 +249,6 @@ while let Some(event) = stream.next().await {
 # Ok(())
 # }
 ```
-
-> Tip: integration tests accept short model names. Set `VERTEX_ANTHROPIC_MODELS=haiku-4.5,sonnet-4.5,opus-4.1` and
-> optionally override specific revisions with environment variables such as
-> `VERTEX_ANTHROPIC_MODEL_HAIKU_4_5=claude-haiku-4-5` or `VERTEX_ANTHROPIC_MODEL_SONNET_4_5=claude-sonnet-4-5`. You can
-> still supply a fully versioned identifier if needed.
 
 ### Chat Conversations
 
@@ -319,37 +274,134 @@ let response = client.count_tokens("gemini-2.5-flash", &request).await?;
 println!("Token count: {}", response.total_tokens);
 ```
 
+<p align="right"><a href="#table-of-contents">back to top</a></p>
+
+## Supported Models
+
+### Gemini
+
+| Model | Context | Output | Notes |
+|-------|---------|--------|-------|
+| `gemini-3.1-pro` | 2M | 64K | Preview |
+| `gemini-3.1-flash` | 1M | 8K | Preview |
+| `gemini-3.1-flash-lite` | 1M | 8K | Preview |
+| `gemini-3-pro-preview` | 1M | 64K | |
+| `gemini-2.5-pro` | 2M | 8K | |
+| `gemini-2.5-flash` | 1M | 8K | |
+| `gemini-embedding-001` | — | — | Text/vision embeddings |
+
+### Claude on Vertex (Anthropic)
+
+| Model | Context | Output |
+|-------|---------|--------|
+| `claude-opus-4-6` | 1M | 128K |
+| `claude-sonnet-4-6` | 1M | 64K |
+| `claude-sonnet-4-5` | 200K | 64K |
+| `claude-haiku-4-5` | 200K | 64K |
+| `claude-opus-4-5` | 200K | 32K |
+
+### Supported Locations
+
+`us-central1` · `us-east1` · `europe-west1` · `asia-southeast1` · `global` (Claude)
+
+See [`docs/gap_analysis_mar_2026.md`](docs/gap_analysis_mar_2026.md) for the latest Vertex AI model/support coverage.
+
+<p align="right"><a href="#table-of-contents">back to top</a></p>
+
+## CLI Usage
+
+Install the CLI:
+
+```bash
+cargo install threatflux-vertex-rust-sdk --features=cli
+```
+
+Set up authentication:
+
+```bash
+gcloud auth application-default login
+# Or: export GOOGLE_APPLICATION_CREDENTIALS="/path/to/key.json"
+```
+
+Use the CLI:
+
+```bash
+# Generate content
+vertex -p your-project-id generate "Explain quantum computing"
+
+# Streaming generation
+vertex -p your-project-id generate "Write a poem" --stream
+
+# Count tokens
+vertex -p your-project-id tokens "How many tokens is this?"
+
+# Interactive chat
+vertex -p your-project-id chat
+
+# Test authentication
+vertex -p your-project-id test auth
+```
+
+<p align="right"><a href="#table-of-contents">back to top</a></p>
+
 ## Configuration
 
 ### Environment Variables
 
-- `GOOGLE_CLOUD_PROJECT`: Default project ID
-- `GOOGLE_CLOUD_LOCATION`: Default location (defaults to `us-central1`)
-- `VERTEX_REGION` / `VERTEX_LOCATION`: Region override for the SDK and CLI (e.g. `global` for Claude)
-- `GOOGLE_APPLICATION_CREDENTIALS`: Path to service account key file
+| Variable | Description |
+|----------|-------------|
+| `GOOGLE_CLOUD_PROJECT` | Default project ID |
+| `GOOGLE_CLOUD_LOCATION` | Default location (defaults to `us-central1`) |
+| `VERTEX_REGION` / `VERTEX_LOCATION` | Region override (e.g. `global` for Claude) |
+| `GOOGLE_APPLICATION_CREDENTIALS` | Path to service account key file |
 
-### Supported Models
+### Build & Test
 
-- `gemini-3.1-pro` — 2M context, 64K output (Preview)
-- `gemini-3.1-flash` — 1M context, 8K output (Preview)
-- `gemini-3.1-flash-lite` — 1M context, 8K output (Preview)
-- `gemini-3-pro-preview` — 1M context, 64K output
-- `gemini-2.5-pro` — 2M context, 8K output
-- `gemini-2.5-flash` — 1M context, 8K output
-- `gemini-embedding-001` — text/vision embeddings
-- `claude-sonnet-4-5`, `claude-haiku-4-5`, `claude-opus-4-5` — via Anthropic on Vertex
+```bash
+make build          # cargo build --all-features
+make test           # cargo test --all-features
+make lint           # cargo clippy --all-features --all-targets -- -D warnings
+make lint-strict    # clippy with pedantic/nursery/cargo lints
+make fmt            # cargo fmt --all
+make fmt-check      # format check without modifying
+make ci             # full CI: fmt-check, lint, test, test-features, docs, security
+make ci-quick       # quick CI: fmt-check, lint, check
+```
 
-### Supported Locations
+<p align="right"><a href="#table-of-contents">back to top</a></p>
 
-- `us-central1`
-- `us-east1`
-- `europe-west1`
-- `asia-southeast1`
-- And others...
+## Architecture
+
+```text
+src/
+├── lib.rs               # Public re-exports
+├── client.rs            # VertexClient + VertexClientBuilder
+├── auth.rs              # AuthProvider trait, ADC, service account
+├── config.rs            # SDK configuration
+├── error.rs             # VertexError (thiserror)
+├── models.rs            # Model metadata and constants
+├── builders.rs          # Request builder helpers
+├── streaming.rs         # SSE parser + ChatStream
+├── api/                 # API trait impls on VertexClient
+│   ├── generate.rs      #   Content generation
+│   ├── stream.rs        #   Streaming generation
+│   ├── chat.rs          #   Multi-turn chat
+│   ├── claude.rs        #   Claude on Vertex (Anthropic)
+│   ├── embeddings.rs    #   Text/vision embeddings
+│   ├── tokens.rs        #   Token counting
+│   ├── functions.rs     #   Function calling
+│   └── models.rs        #   Model listing/metadata
+├── claude/              # Claude-specific types and streaming
+├── types/               # Shared request/response structs
+├── chat_core/           # Interactive CLI chat engine
+└── bin/                 # CLI binaries (vertex, vertex-test, vertex-chat)
+```
+
+<p align="right"><a href="#table-of-contents">back to top</a></p>
 
 ## Error Handling
 
-The SDK provides comprehensive error types:
+The SDK provides comprehensive error types via `VertexError`:
 
 ```rust
 use threatflux_vertex_rust_sdk::VertexError;
@@ -369,26 +421,45 @@ match client.generate_content("model", &request).await {
 }
 ```
 
+<p align="right"><a href="#table-of-contents">back to top</a></p>
+
 ## Examples
 
-See the `examples/` directory for more comprehensive examples:
+See the [`examples/`](examples/) directory for comprehensive examples:
 
-- `examples/basic_generation.rs` - Simple content generation
-- `examples/streaming/` - Streaming responses
-- `examples/function_calling/` - Tool/function calling
-- `examples/chat.rs` - Multi-turn conversations
-- `examples/token_counting.rs` - Token counting
+| Example | Description |
+|---------|-------------|
+| [`basic_generation.rs`](examples/basic_generation.rs) | Simple content generation |
+| [`streaming/`](examples/streaming/) | Streaming responses |
+| [`function_calling/`](examples/function_calling/) | Tool/function calling |
+| [`chat.rs`](examples/chat.rs) | Multi-turn conversations |
+| [`token_counting.rs`](examples/token_counting.rs) | Token counting |
+| [`context_caching/`](examples/context_caching/) | Context caching |
+
+Run an example:
+
+```bash
+cargo run --example basic_generation --features examples
+```
+
+<p align="right"><a href="#table-of-contents">back to top</a></p>
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, commit conventions, and PR guidelines.
 
-## Authors
+## Security
 
-- Wyatt Roersma
-- Claude Code
-- Codex
+See [SECURITY.md](SECURITY.md) for vulnerability reporting instructions.
 
-## Disclaimer
+## License
 
-This is an unofficial SDK and is not affiliated with or endorsed by Google Cloud.
+This project is licensed under the [MIT License](LICENSE).
+
+---
+
+<div align="center">
+
+Built and maintained by [ThreatFlux](https://github.com/ThreatFlux)
+
+</div>

@@ -1,5 +1,5 @@
 name: Bug Report
-description: Report a defect in the template or generated project behavior
+description: Report a bug in the Vertex Rust SDK
 title: "fix: "
 labels: ["bug"]
 body:
@@ -14,7 +14,7 @@ body:
     id: reproduction
     attributes:
       label: Reproduction
-      description: Include steps, commands, and repo shape.
+      description: Include steps, code snippets, and environment details.
     validations:
       required: true
   - type: textarea

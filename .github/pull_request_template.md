@@ -12,4 +12,4 @@
 
 - [ ] Docs updated if needed
 - [ ] Security impact considered
-- [ ] Template bootstrap docs updated if setup changed
+- [ ] Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/)

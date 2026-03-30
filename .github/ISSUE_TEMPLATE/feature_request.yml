@@ -1,5 +1,5 @@
 name: Feature Request
-description: Propose a new best practice or template capability
+description: Propose a new feature or API improvement
 title: "feat: "
 labels: ["enhancement"]
 body:
@@ -14,6 +14,6 @@ body:
     id: proposal
     attributes:
       label: Proposal
-      description: Describe the expected behavior or files to change.
+      description: Describe the expected behavior or API changes.
     validations:
       required: true
