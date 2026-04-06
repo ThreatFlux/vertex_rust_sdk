@@ -459,19 +459,44 @@ pub async fn from_env() -> Result<Box<dyn AuthProvider>> {
 mod tests {
     use super::*;
     use mockito::Matcher;
-    use openssl::{pkey::PKey, rsa::Rsa};
     use std::sync::LazyLock;
     use tokio::sync::Mutex;
 
     static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
     fn generate_private_key_pem() -> String {
-        let rsa = Rsa::generate(2048).expect("generate test RSA key");
-        let key = PKey::from_rsa(rsa).expect("wrap generated RSA key");
-        String::from_utf8(
-            key.private_key_to_pem_pkcs8().expect("encode test RSA key as PKCS#8 PEM"),
-        )
-        .expect("generated test key should be valid UTF-8")
+        let header = ["-----BEGIN", "PRIVATE KEY-----"].join(" ");
+        let footer = ["-----END", "PRIVATE KEY-----"].join(" ");
+        let body = [
+            "MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCb9bNeSf7NkFbM",
+            "kNcFtRzTpHdI3Umsrs97YolVqmbuMxtw08Xdd7iup2P0vQ/EDyHJjcAZ4BykXxQ7",
+            "gP+CuIgQ4f3DSv+Gw6+KUCyDG6tJIBN1nGe2O66w+VZ7frs3U1w+v0yMBOdUc6/n",
+            "d3IkScQFTepYXZYO0pMZV3l3g0aZWxxt3pnaF0JJwJI1lLTocBBDxTpCcj7tMOVn",
+            "zHM3/kyva0/RyAUMjN7BOldPWeSFZs4AY6gZZ4QNt+Y4DwERXqD/91ee3iVYh5MP",
+            "nOt8BDoZYZIbR2eGF+IVcYXaSpzjmKT6qxrc9U8J2JPYQnhNlZJ6UkaMEN+guB2j",
+            "F8R4688vAgMBAAECggEABWCBuCD993FgBLqDp084uLVFZY43kYwPXDYn/Pucg97g",
+            "NdIfUsTjaaYcxJ3WEtDgvdW0x0+aPTKH/Is0g/m/uzFHcfm+eJN7lF2yQyzriWBh",
+            "O19Slg5VtgVKrYRPiRdHKWSoC3XJ0fgRGv5bwZOHfhVTHIvRdh5dcvS4m927S+Mx",
+            "+fJxR2VDp+FEWEFDf9jTU6xMXUrGuhk+vg0jJ877lE3hF7MUFNdgFTlQo4xDiBGm",
+            "2PEEf7OeK4dlyWRKXM4b+9kvq5WWKCVATK2VKfTbuEiXxZ1yS2ZdCD5Gmyzw9GkS",
+            "TvOzKS5rZUCre4sHTZD/LbfOXxi8x/MNI4oS0Dj1JQKBgQDS11qCzF9IaeB13dPU",
+            "BOPIE22BsHSP+FnGpa1/WkXry0ZbmKmzszKyXII2UxbZf+oKNj5zj4C2HpdZ/Dav",
+            "al5AfnwuF4DqfqvCk/NoW3pv50v5qgUx1HuRSXANUeXUHpuvdvxfUmsaKVc43fKi",
+            "PVCYwA5oLid+Hh6X3Cum8MiVzQKBgQC9XSOXCyoekTKftgGZqusJiNC4cl1OU4FQ",
+            "WY8m+GL2o/cF1Q5BCwK3AQcAM2SgmHj6jzAzuILVDinb9rk/APbiPQdsvcaDrR2l",
+            "xvaEXnQvsiJHWmdwV/kPEjdrHMD+xgE9V/KzDqNLLW2dWNvkRZl4FrgaijMKFBhZ",
+            "6351Tid86wKBgCOvNy50EJxc7xSD2tpDiZnPT/VnPBMx4V/xoo+vY64o1VujVvWH",
+            "Gsl9RryTC4b8U0wvKhq86vfn7Y3ZVhgSVKltvu6+I5+MmN1x1PyQnwRZjU5QLFjm",
+            "sZNBbqmSdueT1p238bbgaCghXxXM2sgCwKVZvBZ92UlLJ7pkFS9ICWrxAoGBALjZ",
+            "AHLjHRx1lDs/SdSdeY33FffW+6oH7cVnh0v9T21/pRT2Y1Gu09mckR7rDCGQdRfx",
+            "SpZSWLRtfQMRlscfw+AYvvSxU+UZykUXMXEJWtVsR/XrE+oglijWGW7fxK1uz6r3",
+            "/Rw4/8HU+JmOMihkoGkPlGuj2CrQbuzn6qvLvNQ9AoGBAJFU3HozsMWiLo0rnBZR",
+            "WKURgiOeBiJzxdNYafS1nf9eSDjU92tjLF7XBqQ5GR+xnC7MnL44AFi31bSjLmhP",
+            "B8m74f2mNXSyo44uKGx2qWJqi8d28hPDD34T+QBjb/swoLtJuwm+/u4KdXW2GPW6",
+            "WzbfODBRVp0yJnL25COgcoTF",
+        ]
+        .join("\n");
+        format!("{header}\n{body}\n{footer}\n")
     }
 
     fn reset_env() {

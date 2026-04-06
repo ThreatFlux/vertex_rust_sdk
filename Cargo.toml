@@ -62,7 +62,6 @@ criterion = { version = "0.8.2", features = ["html_reports"] }
 assert_cmd = "2.2.0"
 predicates = "3.1.4"
 once_cell = "1.21.4"
-openssl = "0.10.75"
 rand = "0.10.0"
 
 [features]
