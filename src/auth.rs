@@ -459,21 +459,19 @@ pub async fn from_env() -> Result<Box<dyn AuthProvider>> {
 mod tests {
     use super::*;
     use mockito::Matcher;
+    use openssl::{pkey::PKey, rsa::Rsa};
     use std::sync::LazyLock;
     use tokio::sync::Mutex;
 
     static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
     fn generate_private_key_pem() -> String {
-        use rsa::{
-            pkcs8::{EncodePrivateKey, LineEnding},
-            rand_core::OsRng,
-            RsaPrivateKey,
-        };
-
-        let mut rng = OsRng;
-        let key = RsaPrivateKey::new(&mut rng, 2048).expect("generate test key");
-        key.to_pkcs8_pem(LineEnding::LF).expect("serialize test key").to_string()
+        let rsa = Rsa::generate(2048).expect("generate test RSA key");
+        let key = PKey::from_rsa(rsa).expect("wrap generated RSA key");
+        String::from_utf8(
+            key.private_key_to_pem_pkcs8().expect("encode test RSA key as PKCS#8 PEM"),
+        )
+        .expect("generated test key should be valid UTF-8")
     }
 
     fn reset_env() {
