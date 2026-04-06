@@ -15,7 +15,7 @@ categories = ["api-bindings", "web-programming::http-client"]
 # HTTP Client
 reqwest = { version = "0.13.2", default-features = false, features = ["form", "json", "query", "rustls", "stream"] }
 # Async runtime
-tokio = { version = "1.50.0", features = ["full"] }
+tokio = { version = "1.51.0", features = ["full"] }
 tokio-stream = "0.1.18"
 # JSON serialization
 serde = { version = "1.0.228", features = ["derive"] }
@@ -32,7 +32,7 @@ log = "0.4.29"
 env_logger = "0.11.10"
 tracing = "0.1.44"
 # OAuth2 and JWT
-jsonwebtoken = { version = "10.3.0", features = ["rust_crypto"] }
+jsonwebtoken = { version = "10.3.0", default-features = false, features = ["aws_lc_rs", "use_pem"] }
 # Server-sent events
 futures = "0.3.32"
 futures-util = "0.3.32"
@@ -42,7 +42,7 @@ gcp_auth = "0.12.6"
 bytes = "1.11.1"
 async-trait = "0.1.89"
 base64 = "0.22.1"
-toml = "1.1.0"
+toml = "1.1.2"
 dotenvy = "0.15.7"
 config = "0.15.22"
 url = "2.5.8"
@@ -63,7 +63,6 @@ assert_cmd = "2.2.0"
 predicates = "3.1.4"
 once_cell = "1.21.4"
 rand = "0.10.0"
-rsa = "0.9.10"
 
 [features]
 default = ["blocking", "cli"]
