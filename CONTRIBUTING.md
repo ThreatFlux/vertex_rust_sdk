@@ -14,7 +14,7 @@ Contributions are welcome! This guide covers development setup, commit conventio
 ## Development Setup
 
 ```bash
-# Install Rust 1.94+ (pinned in rust-toolchain.toml)
+# Install Rust 1.95+ (pinned in rust-toolchain.toml)
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
 # Build and run full CI locally
