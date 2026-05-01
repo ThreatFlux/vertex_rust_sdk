@@ -2,7 +2,7 @@
 name = "threatflux-vertex-rust-sdk"
 version = "0.6.1"
 edition = "2021"
-rust-version = "1.94"
+rust-version = "1.95.0"
 authors = ["ThreatFlux Team"]
 description = "Vertex AI SDK for ThreatFlux AI"
 license = "MIT"
