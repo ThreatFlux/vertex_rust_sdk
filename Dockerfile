@@ -10,6 +10,7 @@ ARG BINARY_NAME=vertex
 ARG BINARY_PACKAGE=threatflux-vertex-rust-sdk
 ARG SBOM_MANIFEST_PATH=Cargo.toml
 
+USER root
 RUN apt-get update && apt-get install -y \
     ca-certificates \
     pkg-config \
@@ -43,6 +44,7 @@ ARG BUILD_DATE=unknown
 ARG VCS_REF=unknown
 ARG BINARY_NAME=vertex
 
+USER root
 LABEL org.opencontainers.image.title="ThreatFlux Vertex Rust SDK CLI" \
       org.opencontainers.image.description="ThreatFlux Vertex AI Rust SDK command-line interface" \
       org.opencontainers.image.version="${VERSION}" \
