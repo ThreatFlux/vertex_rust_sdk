@@ -13,9 +13,9 @@ categories = ["api-bindings", "web-programming::http-client"]
 
 [dependencies]
 # HTTP Client
-reqwest = { version = "0.13.2", default-features = false, features = ["form", "json", "query", "rustls", "stream"] }
+reqwest = { version = "0.13.3", default-features = false, features = ["form", "json", "query", "rustls", "stream"] }
 # Async runtime
-tokio = { version = "1.52.1", features = ["full"] }
+tokio = { version = "1.52.3", features = ["full"] }
 tokio-stream = "0.1.18"
 # JSON serialization
 serde = { version = "1.0.228", features = ["derive"] }
