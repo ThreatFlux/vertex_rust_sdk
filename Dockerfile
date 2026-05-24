@@ -1,7 +1,7 @@
 # ThreatFlux Rust Dockerfile
 # Multi-stage build for single-crate or workspace-based applications.
 
-FROM docker.io/threatflux/rust-cicd-template:base-rust-latest AS builder
+FROM rust:1.95-bookworm AS builder
 
 ARG RUST_TOOLCHAIN=stable
 ENV RUSTUP_HOME=/opt/rustup \
@@ -22,7 +22,6 @@ RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
     && rm -rf /var/lib/apt/lists/*
-RUN curl -fsSL https://sh.rustup.rs | sh -s -- -y --no-modify-path --default-toolchain ${RUST_TOOLCHAIN} --profile minimal
 
 RUN id -u builder >/dev/null 2>&1 || useradd -m -u 1000 builder
 USER builder
