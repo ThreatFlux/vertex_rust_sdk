@@ -2,12 +2,13 @@
 # Standardized build, test, and development commands
 
 CARGO ?= cargo
-RUST_MSRV ?= 1.94
-RUST_TOOLCHAIN ?= stable
+RUST_MSRV ?= 1.96.0
+RUST_TOOLCHAIN ?= 1.96.0
 
 DOCKER_IMAGE ?= $(shell basename $(CURDIR))
 DOCKER_TAG ?= latest
-DOCKER_REGISTRY ?= ghcr.io/threatflux
+GITHUB_OWNER ?= $(shell git config --get remote.origin.url | sed -E 's#(git@github.com:|https://github.com/)##; s#/.+##' | tr '[:upper:]' '[:lower:]')
+DOCKER_REGISTRY ?= ghcr.io/$(if $(GITHUB_OWNER),$(GITHUB_OWNER),local)
 BINARY_NAME ?= vertex
 BINARY_PACKAGE ?= threatflux-vertex-rust-sdk
 SBOM_MANIFEST_PATH ?= Cargo.toml

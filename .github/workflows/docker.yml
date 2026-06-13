@@ -25,11 +25,15 @@ env:
   BINARY_NAME: ${{ vars.RUST_TEMPLATE_BINARY_NAME || 'vertex' }}
   BINARY_PACKAGE: ${{ vars.RUST_TEMPLATE_BINARY_PACKAGE || 'threatflux-vertex-rust-sdk' }}
   SBOM_MANIFEST_PATH: ${{ vars.RUST_TEMPLATE_SBOM_MANIFEST_PATH || 'Cargo.toml' }}
+  OCI_IMAGE_TITLE: ThreatFlux Vertex Rust SDK CLI
+  OCI_IMAGE_DESCRIPTION: ThreatFlux Vertex AI Rust SDK command-line interface
+  OCI_IMAGE_VENDOR: ThreatFlux
+  OCI_IMAGE_SOURCE: https://github.com/ThreatFlux/vertex_rust_sdk
 
 jobs:
   build:
     name: Build Docker Image
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.RUST_TEMPLATE_RUNNER_UBUNTU || 'ubuntu-latest' }}
     permissions:
       contents: read
       packages: write
@@ -39,26 +43,27 @@ jobs:
       image_name: ${{ steps.lowercase.outputs.image_name }}
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - name: Lowercase image name
         id: lowercase
         run: echo "image_name=${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
 
+      - name: Detect Rust toolchain version
+        id: rust_toolchain
+        run: |
+          TOOLCHAIN_VERSION="$(sed -n 's/^channel[[:space:]]*=[[:space:]]*"\(.*\)"/\1/p' rust-toolchain.toml | sed -n '1p')"
+          echo "version=${TOOLCHAIN_VERSION}" >> "$GITHUB_OUTPUT"
+
       - name: Select build platforms
         id: platforms
         run: |
-          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
-            echo "value=linux/amd64,linux/arm64" >> "$GITHUB_OUTPUT"
-            echo "needs_qemu=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "value=linux/amd64" >> "$GITHUB_OUTPUT"
-            echo "needs_qemu=false" >> "$GITHUB_OUTPUT"
-          fi
+          echo "value=linux/amd64,linux/arm64" >> "$GITHUB_OUTPUT"
+          echo "needs_qemu=true" >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU
         if: steps.platforms.outputs.needs_qemu == 'true'
-        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
+        uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
@@ -71,7 +76,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata
+      - name: Extract runtime metadata
         id: meta
         uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
         with:
@@ -84,6 +89,35 @@ jobs:
             type=semver,pattern={{major}}
             type=sha,prefix=
             type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Extract base image metadata
+        id: base_meta
+        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.lowercase.outputs.image_name }}
+          tags: |
+            type=raw,value=base-rust-${{ steps.rust_toolchain.outputs.version }}
+            type=raw,value=base-rust-latest,enable={{is_default_branch}}
+
+      - name: Build base image
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: .
+          target: rust-base
+          platforms: ${{ steps.platforms.outputs.value }}
+          push: true
+          tags: ${{ steps.base_meta.outputs.tags }}
+          labels: ${{ steps.base_meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=${{ github.ref_name }}
+            BUILD_DATE=${{ github.event.repository.updated_at }}
+            VCS_REF=${{ github.sha }}
+            BINARY_NAME=${{ env.BINARY_NAME }}
+            BINARY_PACKAGE=${{ env.BINARY_PACKAGE }}
+            SBOM_MANIFEST_PATH=${{ env.SBOM_MANIFEST_PATH }}
 
       - name: Build and export (PRs)
         if: github.event_name == 'pull_request'
@@ -103,8 +137,12 @@ jobs:
             BINARY_NAME=${{ env.BINARY_NAME }}
             BINARY_PACKAGE=${{ env.BINARY_PACKAGE }}
             SBOM_MANIFEST_PATH=${{ env.SBOM_MANIFEST_PATH }}
+            OCI_IMAGE_TITLE=${{ env.OCI_IMAGE_TITLE }}
+            OCI_IMAGE_DESCRIPTION=${{ env.OCI_IMAGE_DESCRIPTION }}
+            OCI_IMAGE_VENDOR=${{ env.OCI_IMAGE_VENDOR }}
+            OCI_IMAGE_SOURCE=${{ env.OCI_IMAGE_SOURCE }}
 
-      - name: Build and push (non-PR)
+      - name: Build and push runtime image (non-PR)
         if: github.event_name != 'pull_request'
         id: build
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
@@ -123,6 +161,10 @@ jobs:
             BINARY_NAME=${{ env.BINARY_NAME }}
             BINARY_PACKAGE=${{ env.BINARY_PACKAGE }}
             SBOM_MANIFEST_PATH=${{ env.SBOM_MANIFEST_PATH }}
+            OCI_IMAGE_TITLE=${{ env.OCI_IMAGE_TITLE }}
+            OCI_IMAGE_DESCRIPTION=${{ env.OCI_IMAGE_DESCRIPTION }}
+            OCI_IMAGE_VENDOR=${{ env.OCI_IMAGE_VENDOR }}
+            OCI_IMAGE_SOURCE=${{ env.OCI_IMAGE_SOURCE }}
 
       - name: Upload image artifact
         if: github.event_name == 'pull_request'
@@ -135,7 +177,7 @@ jobs:
   scan:
     name: Security Scan
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.RUST_TEMPLATE_RUNNER_UBUNTU || 'ubuntu-latest' }}
     permissions:
       contents: read
       security-events: write
@@ -178,7 +220,7 @@ jobs:
         continue-on-error: true
 
       - name: Upload Trivy results
-        uses: github/codeql-action/upload-sarif@0c0c5dc2f136b98cb0537075ccfa21f94cd9a63e # codeql-bundle-v2.24.3
+        uses: github/codeql-action/upload-sarif@3d8036cf7fe7433e4a725cf513a6ea56c7fd0f14 # codeql-bundle-v2.25.0
         with:
           sarif_file: trivy-results.sarif
         if: always() && hashFiles('trivy-results.sarif') != ''
@@ -186,18 +228,17 @@ jobs:
   sign:
     name: Sign Container
     needs: [build, scan]
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.RUST_TEMPLATE_RUNNER_UBUNTU || 'ubuntu-latest' }}
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     permissions:
       contents: read
       packages: write
       id-token: write
     steps:
       - name: Install cosign
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
 
       - name: Log in to registry
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: ${{ env.REGISTRY }}
@@ -205,7 +246,6 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Sign container image
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         run: cosign sign --yes ${{ env.REGISTRY }}/${{ needs.build.outputs.image_name }}@${{ needs.build.outputs.digest }}
         env:
           COSIGN_EXPERIMENTAL: 1
@@ -213,15 +253,14 @@ jobs:
   sbom:
     name: Generate SBOM
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.RUST_TEMPLATE_RUNNER_UBUNTU || 'ubuntu-latest' }}
+    if: github.event_name != 'pull_request'
     steps:
       - name: Get short SHA
-        if: github.event_name != 'pull_request'
         id: sha
         run: echo "short=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
 
       - name: Log in to registry
-        if: github.event_name != 'pull_request'
         uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: ${{ env.REGISTRY }}
@@ -229,7 +268,6 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Generate SBOM
-        if: github.event_name != 'pull_request'
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
         with:
           image: ${{ env.REGISTRY }}/${{ needs.build.outputs.image_name }}:${{ steps.sha.outputs.short }}
