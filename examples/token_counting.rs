@@ -4,7 +4,7 @@ use std::convert::TryFrom;
 use threatflux_vertex_rust_sdk::{Content, CountTokensRequest, VertexClient};
 
 fn chars_to_f64(len: usize) -> f64 {
-    u32::try_from(len).map(f64::from).unwrap_or(f64::MAX)
+    u32::try_from(len).map_or(f64::MAX, f64::from)
 }
 
 #[tokio::main]

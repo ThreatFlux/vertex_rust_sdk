@@ -1,12 +1,7 @@
 # ThreatFlux Rust Dockerfile
 # Multi-stage build for single-crate or workspace-based applications.
 
-FROM rust:1.96-bookworm AS builder
-
-ARG RUST_TOOLCHAIN=stable
-ENV RUSTUP_HOME=/opt/rustup \
-    CARGO_HOME=/opt/cargo \
-    PATH=/opt/cargo/bin:$PATH
+FROM rust:1.96.0-bookworm AS rust-base
 
 ARG VERSION=0.0.0
 ARG BUILD_DATE=unknown
@@ -14,16 +9,20 @@ ARG VCS_REF=unknown
 ARG BINARY_NAME=vertex
 ARG BINARY_PACKAGE=threatflux-vertex-rust-sdk
 ARG SBOM_MANIFEST_PATH=Cargo.toml
+ARG OCI_IMAGE_TITLE="ThreatFlux Vertex Rust SDK CLI"
+ARG OCI_IMAGE_DESCRIPTION="ThreatFlux Vertex AI Rust SDK command-line interface"
+ARG OCI_IMAGE_VENDOR=ThreatFlux
+ARG OCI_IMAGE_SOURCE=https://github.com/ThreatFlux/vertex_rust_sdk
 
-USER root
 RUN apt-get update && apt-get install -y \
     ca-certificates \
-    curl \
     pkg-config \
     libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-RUN id -u builder >/dev/null 2>&1 || useradd -m -u 1000 builder
+FROM rust-base AS builder
+
+RUN useradd -m -u 1000 builder
 USER builder
 WORKDIR /build
 
@@ -49,14 +48,18 @@ ARG VERSION=0.0.0
 ARG BUILD_DATE=unknown
 ARG VCS_REF=unknown
 ARG BINARY_NAME=vertex
+ARG OCI_IMAGE_TITLE="ThreatFlux Vertex Rust SDK CLI"
+ARG OCI_IMAGE_DESCRIPTION="ThreatFlux Vertex AI Rust SDK command-line interface"
+ARG OCI_IMAGE_VENDOR=ThreatFlux
+ARG OCI_IMAGE_SOURCE=https://github.com/ThreatFlux/vertex_rust_sdk
 
-LABEL org.opencontainers.image.title="ThreatFlux Vertex Rust SDK CLI" \
-      org.opencontainers.image.description="ThreatFlux Vertex AI Rust SDK command-line interface" \
+LABEL org.opencontainers.image.title="${OCI_IMAGE_TITLE}" \
+      org.opencontainers.image.description="${OCI_IMAGE_DESCRIPTION}" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.created="${BUILD_DATE}" \
       org.opencontainers.image.revision="${VCS_REF}" \
-      org.opencontainers.image.vendor="ThreatFlux" \
-      org.opencontainers.image.source="https://github.com/ThreatFlux/vertex_rust_sdk"
+      org.opencontainers.image.vendor="${OCI_IMAGE_VENDOR}" \
+      org.opencontainers.image.source="${OCI_IMAGE_SOURCE}"
 
 RUN apt-get update && apt-get install -y \
     ca-certificates \

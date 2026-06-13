@@ -62,7 +62,7 @@ pub async fn structured_test(model: &str) -> Result<()> {
         }
 
         printer.case_complete()?;
-        tokio::time::sleep(Duration::from_millis(1_000)).await;
+        tokio::time::sleep(Duration::from_secs(1)).await;
     }
 
     printer.suite_complete()?;

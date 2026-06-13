@@ -19,7 +19,7 @@ Every README must include:
 [![Crates.io](https://img.shields.io/crates/v/PROJECT.svg)](https://crates.io/crates/PROJECT)
 [![Documentation](https://docs.rs/PROJECT/badge.svg)](https://docs.rs/PROJECT)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Rust](https://img.shields.io/badge/rust-1.94%2B-orange.svg)](https://www.rust-lang.org)
+[![Rust](https://img.shields.io/badge/rust-1.96.0%2B-orange.svg)](https://www.rust-lang.org)
 [![CI](https://github.com/ThreatFlux/PROJECT/actions/workflows/ci.yml/badge.svg)](https://github.com/ThreatFlux/PROJECT/actions/workflows/ci.yml)
 [![Security](https://github.com/ThreatFlux/PROJECT/actions/workflows/security.yml/badge.svg)](https://github.com/ThreatFlux/PROJECT/actions/workflows/security.yml)
 ```
