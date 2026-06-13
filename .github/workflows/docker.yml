@@ -34,6 +34,7 @@ jobs:
   build:
     name: Build Docker Image
     runs-on: ${{ vars.RUST_TEMPLATE_RUNNER_UBUNTU || 'ubuntu-latest' }}
+    timeout-minutes: 60
     permissions:
       contents: read
       packages: write
@@ -58,8 +59,13 @@ jobs:
       - name: Select build platforms
         id: platforms
         run: |
-          echo "value=linux/amd64,linux/arm64" >> "$GITHUB_OUTPUT"
-          echo "needs_qemu=true" >> "$GITHUB_OUTPUT"
+          PLATFORMS="${{ vars.RUST_TEMPLATE_DOCKER_PLATFORMS || 'linux/amd64' }}"
+          echo "value=${PLATFORMS}" >> "$GITHUB_OUTPUT"
+          if [[ "${PLATFORMS}" == *"linux/arm64"* || "${PLATFORMS}" == *"linux/arm/v"* ]]; then
+            echo "needs_qemu=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "needs_qemu=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Set up QEMU
         if: steps.platforms.outputs.needs_qemu == 'true'
