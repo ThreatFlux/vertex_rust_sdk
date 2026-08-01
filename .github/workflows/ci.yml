@@ -147,6 +147,8 @@ jobs:
   msrv:
     name: MSRV Check
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -168,7 +170,7 @@ jobs:
           key: ${{ runner.os }}-msrv-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Check MSRV
-        run: cargo +1.96.0 check --workspace --all-features
+        run: cargo +${{ env.RUST_MSRV_VERSION }} check --workspace --all-features
 
   features:
     name: Feature Checks
