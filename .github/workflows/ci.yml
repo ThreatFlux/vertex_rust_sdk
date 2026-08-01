@@ -26,7 +26,8 @@ env:
   CARGO_INCREMENTAL: 0
   CARGO_NET_RETRY: 10
   RUSTUP_MAX_RETRIES: 10
-  RUST_STABLE_VERSION: 1.96.0
+  RUST_STABLE_VERSION: 1.97.1
+  RUST_MSRV_VERSION: 1.96.0
 
 jobs:
   quick-check:
@@ -146,6 +147,8 @@ jobs:
   msrv:
     name: MSRV Check
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -155,7 +158,7 @@ jobs:
       - name: Install MSRV toolchain
         uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
         with:
-          toolchain: ${{ env.RUST_STABLE_VERSION }}
+          toolchain: ${{ env.RUST_MSRV_VERSION }}
 
       - name: Cache cargo
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -167,7 +170,7 @@ jobs:
           key: ${{ runner.os }}-msrv-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Check MSRV
-        run: cargo check --workspace --all-features
+        run: cargo +${{ env.RUST_MSRV_VERSION }} check --workspace --all-features
 
   features:
     name: Feature Checks
