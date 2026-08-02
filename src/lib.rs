@@ -1,4 +1,4 @@
-//! # ThreatFlux Vertex Rust SDK
+//! # `ThreatFlux` Vertex Rust SDK
 //!
 //! An async, community-maintained Rust client for generative AI APIs on Google
 //! Cloud Vertex AI. This crate is not an official Google, Google Cloud, Vertex
