@@ -1,6 +1,6 @@
 # Authentication and configuration
 
-This guide documents the behavior implemented by crate version 0.6.x. Google
+This guide documents the behavior implemented by the current source. Google
 Cloud project policy, IAM, model availability, quotas, and locations remain
 provider-controlled.
 

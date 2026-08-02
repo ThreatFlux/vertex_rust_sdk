@@ -45,7 +45,8 @@ make docs-check
 The checker verifies that:
 
 - README MSRV claims match `package.rust-version`.
-- The dependency snippet matches the crate's current major/minor version.
+- The install command does not duplicate a release version that can drift from
+  crates.io.
 - The Cargo feature table matches `[features]` exactly.
 - The README quickstart is identical to `examples/quickstart.rs`.
 - Required affiliation and navigation text remains present.

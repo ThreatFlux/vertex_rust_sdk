@@ -66,8 +66,8 @@ We use [Conventional Commits](https://www.conventionalcommits.org/):
 - Run `make docs-check` and `make test-doc` before opening a pull request.
 
 The documentation contract checks the README MSRV and Cargo feature table
-against `Cargo.toml`, verifies the synchronized quickstart, and resolves local
-Markdown links.
+against `Cargo.toml`, verifies release-safe installation guidance and the
+synchronized quickstart, and resolves local Markdown links.
 
 ## Running Tests
 

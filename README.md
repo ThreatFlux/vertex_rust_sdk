@@ -45,13 +45,17 @@ and known scope boundaries.
 - One of the authentication sources described in the
   [configuration guide](docs/configuration.md#authentication).
 
-For a library-only application, add the crate without its default CLI features:
+For a library-only application, add the latest published crate without its
+default CLI features:
 
-```toml
-[dependencies]
-threatflux-vertex-rust-sdk = { version = "0.6", default-features = false }
-tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+```bash
+cargo add threatflux-vertex-rust-sdk --no-default-features
+cargo add tokio --features macros,rt-multi-thread
 ```
+
+These commands let Cargo record the current compatible releases in your
+application's manifest and lockfile instead of duplicating a version number
+that can become stale in this README.
 
 Configure a project, location, and model. The gcloud fallback uses the active
 gcloud CLI identity, so verify that `gcloud auth print-access-token` succeeds:
@@ -65,9 +69,9 @@ export VERTEX_REGION="us-central1"
 export VERTEX_MODEL="a-model-available-in-that-location"
 ```
 
-The following program is kept identical to
-[`examples/quickstart.rs`](examples/quickstart.rs) and compiled in the
-documentation workflow.
+In that application, save the following complete program as `src/main.rs`.
+The code is kept identical to [`examples/quickstart.rs`](examples/quickstart.rs)
+and compiled in the documentation workflow.
 
 <!-- BEGIN QUICKSTART -->
 ```rust
@@ -91,7 +95,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```
 <!-- END QUICKSTART -->
 
-Run it with:
+Run the consumer application with:
+
+```bash
+cargo run
+```
+
+From a clone of this repository, run the synchronized example with:
 
 ```bash
 cargo run --example quickstart --no-default-features
@@ -216,9 +226,9 @@ make test-doc     # rustdoc examples
 make docs         # rustdoc with warnings denied
 ```
 
-`make docs-check` validates README feature/MSRV claims, the synchronized
-quickstart, and local documentation links. See [CONTRIBUTING.md](CONTRIBUTING.md)
-for the complete workflow.
+`make docs-check` validates README feature/MSRV claims, release-safe install
+guidance, the synchronized quickstart, and local documentation links. See
+[CONTRIBUTING.md](CONTRIBUTING.md) for the complete workflow.
 
 ## Support and security
 

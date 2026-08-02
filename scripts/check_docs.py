@@ -27,7 +27,6 @@ VERSION = re.compile(r"(?<![\w.])(\d+\.\d+(?:\.\d+)?)(?![\w.])")
 
 @dataclass(frozen=True)
 class Manifest:
-    version: str
     rust_version: str
     features: frozenset[str]
 
@@ -58,7 +57,6 @@ def read_manifest(path: Path) -> Manifest:
     package = cargo["package"]
     features = cargo.get("features", {})
     return Manifest(
-        version=str(package["version"]),
         rust_version=str(package["rust-version"]),
         features=frozenset(features),
     )
@@ -134,17 +132,25 @@ def check_features(
         )
 
 
-def check_crate_version(
-    path: Path, readme: str, manifest: Manifest, problems: list[Problem]
-) -> None:
-    expected = ".".join(manifest.version.split(".")[:2])
-    dependency = re.search(
-        r'threatflux-vertex-rust-sdk\s*=\s*\{[^\n]*version\s*=\s*"([^"]+)"',
-        readme,
+def check_installation(path: Path, readme: str, problems: list[Problem]) -> None:
+    required = (
+        "cargo add threatflux-vertex-rust-sdk --no-default-features",
+        "cargo add tokio --features macros,rt-multi-thread",
     )
-    if dependency is None or dependency.group(1) != expected:
-        problems.append(
-            Problem(path, 1, f'README dependency version must be "{expected}"')
+    for command in required:
+        if command not in readme:
+            problems.append(Problem(path, 1, f"README must contain: {command}"))
+
+    hard_coded_dependency = re.search(
+        r'threatflux-vertex-rust-sdk\s*=\s*\{[^\n]*version\s*=', readme
+    )
+    if hard_coded_dependency is not None:
+        add_problem(
+            problems,
+            path,
+            readme,
+            hard_coded_dependency.start(),
+            "README install guidance must not hard-code the crate release",
         )
 
 
@@ -286,7 +292,7 @@ def main() -> int:
     problems: list[Problem] = []
     check_msrv(readme_path, readme, manifest, problems)
     check_features(readme_path, readme, manifest, problems)
-    check_crate_version(readme_path, readme, manifest, problems)
+    check_installation(readme_path, readme, problems)
     check_quickstart(readme_path, readme, root / "examples/quickstart.rs", problems)
     check_readme_contract(readme_path, readme, problems)
     check_local_links(root, problems)
