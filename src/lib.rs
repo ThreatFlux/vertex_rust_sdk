@@ -1,14 +1,16 @@
 //! # `ThreatFlux` Vertex Rust SDK
 //!
-//! A Rust SDK for Google Cloud Vertex AI API, providing access to Gemini models and other AI services.
+//! An async, community-maintained Rust client for generative AI APIs on Google
+//! Cloud Vertex AI. This crate is not an official Google, Google Cloud, Vertex
+//! AI, Gemini, Anthropic, or Claude SDK.
 //!
 //! ## Features
 //!
-//! - **Authentication**: `OAuth2`, Service Account, and Application Default Credentials
-//! - **Gemini Models**: Content generation with streaming and non-streaming support
-//! - **Function Calling**: Tool/function calling capabilities
-//! - **Token Counting**: Count tokens in content
-//! - **Chat Completions**: Multi-turn conversations
+//! - Gemini content generation and server-sent event streaming
+//! - Function calling, structured output, grounding, and safety types
+//! - Embeddings, token counting, chat helpers, and context caching
+//! - Claude messages and streaming through Vertex publisher endpoints
+//! - Pluggable bearer-token authentication via [`AuthProvider`]
 //!
 //! ## Quick Start
 //!
@@ -17,22 +19,24 @@
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     let config = Config {
-//!         project_id: "your-project-id".into(),
-//!         region: "us-central1".into(),
-//!         ..Config::default()
-//!     };
+//!     let config = Config::from_env()?;
+//!     let model = config.model.clone();
 //!     let client = VertexClient::new(config).await?;
 //!
 //!     let request = GenerateContentRequest::new("Why is the sky blue?");
-//!     let response = client.generate_content("gemini-2.5-flash", &request).await?;
+//!     let response = client.generate_content(&model, &request).await?;
 //!
 //!     if let Some(text) = response.text() {
-//!         println!("Response: {}", text);
+//!         println!("{text}");
 //!     }
 //!     Ok(())
 //! }
 //! ```
+//!
+//! Model IDs and regional availability are provider-controlled. Set
+//! `VERTEX_PROJECT_ID`, `VERTEX_REGION`, and `VERTEX_MODEL` explicitly for
+//! repeatable deployments. See the repository configuration guide for the
+//! implemented credential precedence, timeout, retry, and proxy behavior.
 
 pub mod api;
 pub mod auth;

@@ -1,0 +1,178 @@
+name: Documentation
+
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - "README.md"
+      - "CLI.md"
+      - "CONTRIBUTING.md"
+      - "SECURITY.md"
+      - "docs/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - "Makefile"
+      - "examples/**"
+      - "scripts/check_docs.py"
+      - "scripts/check_template_placeholders.py"
+      - "src/**/*.rs"
+      - ".markdownlint-cli2.jsonc"
+      - ".github/workflows/docs.yml"
+  pull_request:
+    branches: [main, dev]
+    paths:
+      - "README.md"
+      - "CLI.md"
+      - "CONTRIBUTING.md"
+      - "SECURITY.md"
+      - "docs/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - "Makefile"
+      - "examples/**"
+      - "scripts/check_docs.py"
+      - "scripts/check_template_placeholders.py"
+      - "src/**/*.rs"
+      - ".markdownlint-cli2.jsonc"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+
+permissions: read-all
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_NET_RETRY: 10
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+  RUSTUP_MAX_RETRIES: 10
+
+jobs:
+  contract:
+    name: Documentation Contract
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Validate documentation contract
+        run: |
+          python3 scripts/check_template_placeholders.py
+          python3 scripts/check_docs.py
+
+      - name: Lint Markdown
+        uses: DavidAnson/markdownlint-cli2-action@3b11e4c3e2eac5207914843511bd517908954018 # v24.1.0
+
+      - name: Check external links
+        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
+        with:
+          args: >-
+            --verbose
+            --no-progress
+            --scheme https
+            --scheme http
+            --max-retries 3
+            --retry-wait-time 2
+            --timeout 30
+            --accept '100..=103,200..=299,429'
+            --exclude '^https://crates\.io/crates/threatflux-vertex-rust-sdk$'
+            README.md
+            CLI.md
+            CONTRIBUTING.md
+            SECURITY.md
+            docs/api-coverage.md
+            docs/configuration.md
+            docs/README_STANDARDS.md
+          fail: true
+          failIfEmpty: true
+          lycheeVersion: v0.24.2
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  quickstart:
+    name: Quickstart (${{ matrix.channel }})
+    needs: contract
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        channel: [msrv, stable]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Resolve Rust toolchain
+        id: toolchain
+        shell: bash
+        run: |
+          if [[ "${{ matrix.channel }}" == "msrv" ]]; then
+            value="$(python3 scripts/check_docs.py --print-msrv)"
+          else
+            value="stable"
+          fi
+          echo "value=${value}" >> "${GITHUB_OUTPUT}"
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
+        with:
+          toolchain: ${{ steps.toolchain.outputs.value }}
+
+      - name: Cache Cargo
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: ${{ runner.os }}-docs-${{ matrix.channel }}-${{ hashFiles('Cargo.toml', 'Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-docs-${{ matrix.channel }}-
+
+      - name: Compile quickstart
+        env:
+          RUST_TOOLCHAIN: ${{ steps.toolchain.outputs.value }}
+        run: cargo +"${RUST_TOOLCHAIN}" check --locked --no-default-features --example quickstart
+
+  rustdoc:
+    name: Rustdoc
+    needs: contract
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
+        with:
+          toolchain: stable
+
+      - name: Cache Cargo
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: ${{ runner.os }}-docs-rustdoc-${{ hashFiles('Cargo.toml', 'Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-docs-rustdoc-
+
+      - name: Test rustdoc examples
+        run: cargo +stable test --locked --doc --all-features
+
+      - name: Build API documentation
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: cargo +stable doc --locked --all-features --no-deps

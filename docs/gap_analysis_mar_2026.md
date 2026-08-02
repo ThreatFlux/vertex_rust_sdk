@@ -1,5 +1,11 @@
 # Vertex AI model & feature gap analysis (March 2026)
 
+> [!WARNING]
+> This is a historical planning snapshot for the 0.4.x line. It is retained for
+> project context, not as the current support contract. See
+> [`api-coverage.md`](api-coverage.md) for code-backed coverage of the current
+> crate.
+
 This note captures the latest Vertex AI model lineup and highlights gaps between upstream capabilities and the current SDK surface. Sources are linked for each new model/feature.
 
 ## Current SDK coverage (0.4.x)

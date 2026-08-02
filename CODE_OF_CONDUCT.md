@@ -22,4 +22,5 @@ Project maintainers are responsible for clarifying and enforcing this code of co
 
 ## Reporting
 
-Report code of conduct issues to admin@threatflux.ai.
+Report code of conduct issues to
+[admin@threatflux.ai](mailto:admin@threatflux.ai).

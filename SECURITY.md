@@ -2,10 +2,10 @@
 
 ## Supported Versions
 
-| Version | Supported |
-| ------- | --------- |
+| Version | Supported          |
+| ------- | ------------------ |
 | 0.6.x   | :white_check_mark: |
-| < 0.6   | :x: |
+| < 0.6   | :x:                |
 
 ## Reporting a Vulnerability
 
@@ -13,7 +13,7 @@
 
 ### How to Report
 
-1. **Email**: Send details to security@threatflux.ai
+1. **Email**: Send details to [security@threatflux.ai](mailto:security@threatflux.ai)
 2. **GitHub Security Advisories**: Use the repository [Security tab](https://github.com/ThreatFlux/vertex_rust_sdk/security/advisories) to report privately
 
 ### What to Include
