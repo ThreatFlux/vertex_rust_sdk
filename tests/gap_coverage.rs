@@ -78,26 +78,24 @@ fn gap_analysis_documents_resolved_items() {
 }
 
 #[test]
-fn readme_links_gap_doc_and_uses_supported_model() {
+fn readme_links_current_coverage_and_uses_configured_model() {
     let readme = fs::read_to_string(manifest_path("README.md")).expect("README should be readable");
 
     assert!(
-        readme.contains(
-            latest_gap_doc_path()
-                .file_name()
-                .expect("gap doc should have a filename")
-                .to_string_lossy()
-                .as_ref()
-        ),
-        "README should link to the latest gap analysis doc filename"
+        readme.contains("docs/api-coverage.md"),
+        "README should link to the current API coverage contract"
     );
     assert!(
-        readme.contains("gemini-2.5-flash"),
-        "Quickstart should use a supported model identifier"
+        readme.contains("let model = config.model.clone();"),
+        "Quickstart should use the configured model instead of a static provider default"
     );
     assert!(
         !readme.contains("gemini-2.0-flash-001"),
         "README should no longer reference the retired gemini-2.0-flash-001 model"
+    );
+    assert!(
+        !readme.contains("GcpAuthProvider"),
+        "README authentication examples should use exported public types"
     );
 }
 

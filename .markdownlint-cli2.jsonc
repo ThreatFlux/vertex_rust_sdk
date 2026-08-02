@@ -1,0 +1,18 @@
+{
+  "config": {
+    "MD013": false,
+    "MD024": {
+      "siblings_only": true
+    },
+    "MD033": false
+  },
+  "globs": [
+    "README.md",
+    "CLI.md",
+    "CONTRIBUTING.md",
+    "SECURITY.md",
+    "docs/**/*.md",
+    "!docs/gap_analysis_mar_2026.md",
+    "!docs/TEMPLATE_BOOTSTRAP_CHECKLIST.md"
+  ]
+}

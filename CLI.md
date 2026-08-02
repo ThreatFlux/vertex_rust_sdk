@@ -16,19 +16,25 @@ cargo build --release --bin vertex-chat --features cli
 
 ### Authentication
 
-The CLI requires Google Cloud Platform authentication credentials. Set these environment variables:
+The CLI uses the same authentication resolution as the library. For local
+development, authenticate the gcloud CLI identity that the SDK invokes and
+verify token output:
 
 ```bash
-export GCP_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
-export GCP_CLIENT_EMAIL="service-account@project.iam.gserviceaccount.com"
-export GCP_CLIENT_ID="your-client-id"
+gcloud auth login
+gcloud auth print-access-token >/dev/null
 ```
 
-**Alternatively**, use Application Default Credentials:
+For a service-account key file:
 
 ```bash
-gcloud auth application-default login
+export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account-key.json"
 ```
+
+The SDK does not currently read the local ADC JSON file created by
+`gcloud auth application-default login`. See the
+[authentication guide](docs/configuration.md#authentication) for exact
+precedence, workload identity guidance, and secret-handling cautions.
 
 ### Project Configuration
 
@@ -67,7 +73,7 @@ cargo run --bin vertex-chat --features cli
 
 ## Command-Line Options
 
-```
+```text
 Options:
   -p, --project <PROJECT>           Project ID
   -l, --location <LOCATION>         Location/region [default: us-central1]
@@ -94,7 +100,7 @@ While chatting, you can use these commands:
 
 ### Simple Chat
 
-```
+```text
 $ cargo run --bin vertex-chat --features cli
 
 === Vertex AI Chat ===
@@ -132,7 +138,7 @@ with open('file.txt', 'r') as f:
 
 ### Adjusting Temperature
 
-```
+```text
 You: temp
 New temperature (0.0-2.0): 1.5
 Temperature set to 1.5
@@ -145,7 +151,7 @@ Assistant: Once upon a time in a digital realm...
 
 The CLI displays token usage after each response:
 
-```
+```text
 (tokens: 45 in, 128 out, 173 total)
 ```
 
@@ -157,22 +163,21 @@ The CLI displays token usage after each response:
 
 ### Authentication Errors
 
-```
+```text
 Error creating client: Authentication { message: "..." }
 
-Make sure you have set the following environment variables:
-  GCP_PRIVATE_KEY
-  GCP_CLIENT_EMAIL
-  GCP_CLIENT_ID
+Make sure one supported token source is available. For example:
+  gcloud auth login
+  gcloud auth print-access-token
 
-Or run: gcloud auth application-default login
+Or set GOOGLE_APPLICATION_CREDENTIALS to a service-account key file.
 ```
 
 **Solution**: Verify your GCP credentials are set correctly.
 
 ### Project Not Found
 
-```
+```text
 thread 'main' panicked at: Project ID required (--project or VERTEX_PROJECT env var)
 ```
 
@@ -180,19 +185,18 @@ thread 'main' panicked at: Project ID required (--project or VERTEX_PROJECT env 
 
 ### Model Not Available
 
-```
+```text
 Error: Api { message: "Status 404: Model not found", code: "404" }
 ```
 
-**Solution**: Check that the model name is correct and available in your region. Try:
-
-- `gemini-3-pro-preview`
-- `gemini-2.5-flash`
-- `gemini-2.5-pro`
+**Solution**: Check that the model ID is enabled for the project and available
+in the selected location. Model catalogs change independently of the CLI. Use
+`vertex --project <PROJECT> models list` or your provider console to inspect
+current project availability, then pass the chosen ID with `--model`.
 
 ### Rate Limiting
 
-```
+```text
 Error: Api { message: "Status 429: Resource exhausted", code: "429" }
 ```
 
@@ -206,7 +210,8 @@ Error: Api { message: "Status 429: Resource exhausted", code: "429" }
 cargo run --bin vertex-chat --features cli -- --debug
 ```
 
-This shows detailed HTTP requests, authentication flow, and API responses.
+This enables debug-level output for events the CLI and SDK emit. The SDK does
+not log every request, authentication step, or response body.
 
 ### Build for Distribution
 
@@ -220,8 +225,11 @@ cargo build --release --bin vertex-chat --features cli
 
 ## Features
 
-✅ Multi-turn conversations with history ✅ Interactive command mode ✅ Token usage tracking ✅ Adjustable temperature
-✅ System instructions ✅ Error handling with helpful messages ✅ Color-coded output ✅ Conversation statistics
+- Multi-turn conversation history
+- Interactive commands and conversation statistics
+- Streaming output and token-usage reporting
+- Adjustable temperature and system instructions
+- Colorized status and error output
 
 ## Architecture
 
@@ -244,7 +252,7 @@ interactive experience.
 
 The CLI automatically uses streaming by default. You'll see tokens appear in real-time as the model generates them:
 
-```
+```text
 You: Write a short story about a robot
 Assistant: Once upon a time, in a world where technology and humanity
 intertwined seamlessly, there lived a robot named Unit-7X...
@@ -268,7 +276,9 @@ The streaming implementation uses Server-Sent Events (SSE) with the Vertex AI AP
 ## Additional Features
 
 - ✅ **Real-time streaming** (SSE-based)
-- Implement conversation save/load (future)
-- Add multi-modal support (images, audio) (future)
-- Support function calling (future)
-- Context caching for long conversations (future)
+- Conversation save/load is not yet exposed by `vertex-chat`.
+- Multimodal attachments are not yet exposed by `vertex-chat`.
+- Function calling is available in the library and `vertex` CLI, not in the
+  interactive chat command loop.
+- Context caching is available in the library and `vertex` CLI, not in the
+  interactive chat command loop.
