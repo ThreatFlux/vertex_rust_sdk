@@ -42,7 +42,7 @@ gcp_auth = "0.12.6"
 # Additional utilities
 bytes = "1.11.1"
 async-trait = "0.1.89"
-base64 = "0.22.1"
+base64 = "0.23.0"
 toml = "1.1.2"
 dotenvy = "0.15.7"
 config = "0.15.23"
