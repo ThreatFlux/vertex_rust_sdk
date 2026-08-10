@@ -68,7 +68,7 @@ jobs:
           python3 scripts/check_docs.py
 
       - name: Lint Markdown
-        uses: DavidAnson/markdownlint-cli2-action@3b11e4c3e2eac5207914843511bd517908954018 # v24.1.0
+        uses: DavidAnson/markdownlint-cli2-action@6bf21b07787794f89a243495939cd651942aeabe # v24.1.0
 
       - name: Check external links
         uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
