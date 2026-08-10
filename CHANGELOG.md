@@ -38,6 +38,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - All new Claude model families route through global location.
 - Web search beta header auto-detection distinguishes v1 and v2 tool variants.
 
+## [0.7.0] - 2026-08-10
+
+### Added
+
+- Claude 5 model support for Vertex: model metadata and aliases in `model_info.rs`, descriptor entries in
+  `model_descriptor.rs`, and Claude 5 coverage in the `vertex_test` binary configuration.
+
+### Changed
+
+- Client routing recognizes the Claude 5 model family.
+- Overhauled the Vertex SDK onboarding documentation.
+
 ## [0.4.0] - 2026-03-23
 
 ### Changed
