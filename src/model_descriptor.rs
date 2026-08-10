@@ -121,6 +121,7 @@ impl ModelDescriptor {
             || lower.contains("opus")
             || lower.contains("sonnet")
             || lower.contains("haiku")
+            || lower.contains("fable")
         {
             "anthropic".to_string()
         } else {
@@ -158,6 +159,12 @@ mod tests {
     #[test]
     fn parse_infers_anthropic() {
         let descriptor = ModelDescriptor::parse("claude-sonnet-4-5@20250929").unwrap();
+        assert_eq!(descriptor.publisher(), "anthropic");
+    }
+
+    #[test]
+    fn parse_infers_anthropic_for_fable_alias() {
+        let descriptor = ModelDescriptor::parse("fable-5").unwrap();
         assert_eq!(descriptor.publisher(), "anthropic");
     }
 

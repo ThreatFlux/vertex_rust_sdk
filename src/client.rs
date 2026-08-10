@@ -546,6 +546,22 @@ fn anthropic_global_model(model_name: &str) -> bool {
             | "claude-sonnet-46"
             | "sonnet-4-6"
             | "sonnet-46"
+            // 4.7 / 4.8 family
+            | "claude-opus-4-7"
+            | "claude-opus-47"
+            | "opus-4-7"
+            | "opus-47"
+            | "claude-opus-4-8"
+            | "claude-opus-48"
+            | "opus-4-8"
+            | "opus-48"
+            // 5 family
+            | "claude-sonnet-5"
+            | "sonnet-5"
+            | "claude-fable-5"
+            | "fable-5"
+            | "claude-opus-5"
+            | "opus-5"
             // 4.1 / 4.0 family
             | "claude-opus-4-1"
             | "claude-opus-41"
@@ -700,6 +716,20 @@ mod tests {
     }
 
     #[test]
+    fn latest_claude_models_keep_bare_ids() {
+        for model in [
+            "claude-opus-4-7",
+            "claude-opus-4-8",
+            "claude-sonnet-5",
+            "claude-fable-5",
+            "claude-opus-5",
+        ] {
+            let descriptor = ModelDescriptor::parse(model).unwrap();
+            assert_eq!(effective_model_name(&descriptor), model);
+        }
+    }
+
+    #[test]
     fn opus_41_gets_version_suffix() {
         let descriptor =
             ModelDescriptor::parse("publishers/anthropic/models/claude-opus-4-1").unwrap();
@@ -721,6 +751,36 @@ mod tests {
         assert!(anthropic_global_model("opus-4.6"));
         assert!(anthropic_global_model("claude-sonnet-4-6"));
         assert!(anthropic_global_model("sonnet-4.6"));
+    }
+
+    #[tokio::test]
+    async fn latest_claude_models_and_short_aliases_use_global_location() {
+        let client = build_test_client().await;
+
+        for model in [
+            "claude-opus-4-7",
+            "opus-4-7",
+            "claude-opus-4-8",
+            "opus-4-8",
+            "claude-sonnet-5",
+            "sonnet-5",
+            "claude-fable-5",
+            "fable-5",
+            "claude-opus-5",
+            "opus-5",
+        ] {
+            let descriptor = ModelDescriptor::parse(model).unwrap();
+            let context = client.model_request_context(&descriptor);
+
+            assert_eq!(descriptor.publisher(), "anthropic");
+            assert_eq!(
+                context.resource_path,
+                format!(
+                    "projects/test-project/locations/global/publishers/anthropic/models/{model}"
+                )
+            );
+            assert!(!context.relative_path.contains('@'));
+        }
     }
 
     #[test]

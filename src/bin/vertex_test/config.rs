@@ -4,6 +4,12 @@ use threatflux_vertex_rust_sdk::models::Model;
 use url::Url;
 
 pub const SUPPORTED_CLAUDE_WEB_SEARCH_PREFIXES: &[&str] = &[
+    "claude-sonnet-5",
+    "claude-fable-5",
+    "claude-opus-4-8",
+    "claude-opus-4-7",
+    "claude-opus-4-6",
+    "claude-sonnet-4-6",
     "claude-sonnet-4-5",
     "claude-sonnet-4",
     "claude-3-7-sonnet",
@@ -66,6 +72,13 @@ pub fn resolve_model_alias(input: &str) -> String {
     normalized = normalized.replace('.', "-");
 
     match normalized.as_str() {
+        "sonnet-5" => "claude-sonnet-5".to_string(),
+        "fable-5" => "claude-fable-5".to_string(),
+        "opus-5" => "claude-opus-5".to_string(),
+        "opus-4-8" | "opus-48" => "claude-opus-4-8".to_string(),
+        "opus-4-7" | "opus-47" => "claude-opus-4-7".to_string(),
+        "sonnet-4-6" | "sonnet-46" => "claude-sonnet-4-6".to_string(),
+        "opus-4-6" | "opus-46" => "claude-opus-4-6".to_string(),
         "sonnet-4-5" | "sonnet-45" => "claude-sonnet-4-5".to_string(),
         "haiku-4-5" | "haiku-45" => "claude-haiku-4-5".to_string(),
         "opus-4-1" | "opus-41" => "claude-opus-4-1".to_string(),
@@ -119,6 +132,9 @@ mod tests {
 
     #[test]
     fn resolves_claude_aliases() {
+        assert!(claude_model_supports_web_search("claude-sonnet-5"));
+        assert!(claude_model_supports_web_search("claude-fable-5"));
+        assert!(!claude_model_supports_web_search("claude-opus-5"));
         assert!(claude_model_supports_web_search("claude-sonnet-4-5"));
         assert!(claude_model_supports_web_search("claude-3-5-haiku@20240229"));
         assert!(!claude_model_supports_web_search("gemini-3-pro-preview"));
@@ -131,6 +147,9 @@ mod tests {
         env::set_var(key, "publishers/test/models/override");
         assert_eq!(resolve_model_alias("sonnet-4.5"), "publishers/test/models/override");
         env::remove_var(key);
+        assert_eq!(resolve_model_alias("sonnet-5"), "claude-sonnet-5");
+        assert_eq!(resolve_model_alias("fable-5"), "claude-fable-5");
+        assert_eq!(resolve_model_alias("opus-5"), "claude-opus-5");
         assert_eq!(resolve_model_alias("haiku-4.5"), "claude-haiku-4-5");
         assert_eq!(resolve_model_alias(""), "");
         let explicit = "publishers/acme/models/custom";
