@@ -73,6 +73,21 @@ const CLAUDE_SONNET_46_ALIASES: &[&str] = &[
     "publishers/anthropic/models/claude-sonnet-4-6",
 ];
 
+const CLAUDE_OPUS_47_ALIASES: &[&str] =
+    &["claude-opus-4-7", "opus-4-7", "opus-47", "publishers/anthropic/models/claude-opus-4-7"];
+
+const CLAUDE_OPUS_48_ALIASES: &[&str] =
+    &["claude-opus-4-8", "opus-4-8", "opus-48", "publishers/anthropic/models/claude-opus-4-8"];
+
+const CLAUDE_SONNET_5_ALIASES: &[&str] =
+    &["claude-sonnet-5", "sonnet-5", "publishers/anthropic/models/claude-sonnet-5"];
+
+const CLAUDE_FABLE_5_ALIASES: &[&str] =
+    &["claude-fable-5", "fable-5", "publishers/anthropic/models/claude-fable-5"];
+
+const CLAUDE_OPUS_5_ALIASES: &[&str] =
+    &["claude-opus-5", "opus-5", "publishers/anthropic/models/claude-opus-5"];
+
 const CLAUDE_OPUS_41_ALIASES: &[&str] = &[
     "claude-opus-4-1",
     "opus-4-1",
@@ -184,6 +199,56 @@ const MODEL_INFO_ENTRIES: &[ModelInfoEntry] = &[
             Some(6_000_000),
             Some(1_000_000),
             Some(64_000),
+        ),
+    },
+    ModelInfoEntry {
+        aliases: CLAUDE_OPUS_47_ALIASES,
+        info: ModelInfo::new(
+            "publishers/anthropic/models/claude-opus-4-7",
+            "Claude Opus 4.7",
+            None,
+            None,
+            None,
+        ),
+    },
+    ModelInfoEntry {
+        aliases: CLAUDE_OPUS_48_ALIASES,
+        info: ModelInfo::new(
+            "publishers/anthropic/models/claude-opus-4-8",
+            "Claude Opus 4.8",
+            None,
+            None,
+            None,
+        ),
+    },
+    ModelInfoEntry {
+        aliases: CLAUDE_SONNET_5_ALIASES,
+        info: ModelInfo::new(
+            "publishers/anthropic/models/claude-sonnet-5",
+            "Claude Sonnet 5",
+            None,
+            None,
+            None,
+        ),
+    },
+    ModelInfoEntry {
+        aliases: CLAUDE_FABLE_5_ALIASES,
+        info: ModelInfo::new(
+            "publishers/anthropic/models/claude-fable-5",
+            "Claude Fable 5",
+            None,
+            None,
+            None,
+        ),
+    },
+    ModelInfoEntry {
+        aliases: CLAUDE_OPUS_5_ALIASES,
+        info: ModelInfo::new(
+            "publishers/anthropic/models/claude-opus-5",
+            "Claude Opus 5",
+            None,
+            None,
+            None,
         ),
     },
     ModelInfoEntry {
@@ -454,6 +519,29 @@ mod tests {
         assert_eq!(info.canonical_id, "publishers/anthropic/models/claude-sonnet-4-6");
         assert_eq!(info.context_window_tokens, Some(1_000_000));
         assert_eq!(info.max_output_tokens, Some(64_000));
+    }
+
+    #[test]
+    fn resolves_latest_claude_metadata_aliases_without_assumed_limits() {
+        let cases = [
+            ("opus-47", "publishers/anthropic/models/claude-opus-4-7", "Claude Opus 4.7"),
+            ("opus-4-8", "publishers/anthropic/models/claude-opus-4-8", "Claude Opus 4.8"),
+            ("sonnet-5", "publishers/anthropic/models/claude-sonnet-5", "Claude Sonnet 5"),
+            ("fable-5", "publishers/anthropic/models/claude-fable-5", "Claude Fable 5"),
+            ("opus-5", "publishers/anthropic/models/claude-opus-5", "Claude Opus 5"),
+        ];
+
+        for (alias, canonical_id, display_name) in cases {
+            let alias_info = get_model_info(alias).unwrap();
+            let canonical_info = get_model_info(canonical_id).unwrap();
+
+            assert_eq!(alias_info, canonical_info);
+            assert_eq!(alias_info.canonical_id, canonical_id);
+            assert_eq!(alias_info.display_name, display_name);
+            assert!(alias_info.max_request_bytes.is_none());
+            assert!(alias_info.context_window_tokens.is_none());
+            assert!(alias_info.max_output_tokens.is_none());
+        }
     }
 
     #[test]
