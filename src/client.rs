@@ -578,12 +578,16 @@ fn google_global_model(model_name: &str) -> bool {
     matches!(
         normalize_model_key(model_name).as_str(),
         "gemini-3-pro-preview"
+            | "gemini-3-flash-preview"
             | "gemini-3-1-pro"
             | "gemini-3-1-pro-preview"
             | "gemini-3-1-flash"
             | "gemini-3-1-flash-preview"
             | "gemini-3-1-flash-lite"
             | "gemini-3-1-flash-lite-preview"
+            | "gemini-3-5-flash"
+            | "gemini-3-5-flash-lite"
+            | "gemini-3-6-flash"
     )
 }
 
@@ -656,16 +660,27 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn gemini_3_pro_preview_models_use_global_location() {
+    async fn current_gemini_3_models_use_global_location() {
         let client = build_test_client().await;
-        let descriptor =
-            ModelDescriptor::parse("publishers/google/models/gemini-3-pro-preview").unwrap();
-        let context = client.model_request_context(&descriptor);
+        for model in [
+            "gemini-3-pro-preview",
+            "gemini-3-flash-preview",
+            "gemini-3.1-pro-preview",
+            "gemini-3.1-flash-lite",
+            "gemini-3.1-flash-lite-preview",
+            "gemini-3.5-flash",
+            "gemini-3.5-flash-lite",
+            "gemini-3.6-flash",
+        ] {
+            let model_path = format!("publishers/google/models/{model}");
+            let descriptor = ModelDescriptor::parse(&model_path).unwrap();
+            let context = client.model_request_context(&descriptor);
 
-        assert_eq!(
-            context.resource_path,
-            "projects/test-project/locations/global/publishers/google/models/gemini-3-pro-preview"
-        );
+            assert_eq!(
+                context.resource_path,
+                format!("projects/test-project/locations/global/publishers/google/models/{model}")
+            );
+        }
     }
 
     #[test]
