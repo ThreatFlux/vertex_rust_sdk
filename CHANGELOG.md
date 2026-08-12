@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-08-12
+
 ### Added
 
 - Gemini 3.1 Pro, Flash, and Flash Lite model metadata and aliases in `model_info.rs`.
@@ -27,6 +29,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   filtering.
 - `ToolChoice::None` variant to disable tool use.
 - Thinking delta support in `ContentBlockDelta` for streaming.
+- `Usage.cache_creation_input_tokens: Option<u32>` and `Usage.cache_read_input_tokens: Option<u32>`
+  for Anthropic prompt-cache accounting on Vertex Claude responses.
+- `ContentBlockDelta.signature: Option<String>` field carrying the cryptographic signature chunks
+  emitted after extended-thinking text during SSE streaming.
 
 ### Changed
 

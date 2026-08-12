@@ -199,6 +199,10 @@ pub fn merge_claude_usage(existing: Option<ClaudeUsage>, new_usage: &ClaudeUsage
     let mut usage = existing.unwrap_or_default();
     usage.input_tokens = usage.input_tokens.max(new_usage.input_tokens);
     usage.output_tokens = usage.output_tokens.max(new_usage.output_tokens);
+    usage.cache_creation_input_tokens =
+        usage.cache_creation_input_tokens.max(new_usage.cache_creation_input_tokens);
+    usage.cache_read_input_tokens =
+        usage.cache_read_input_tokens.max(new_usage.cache_read_input_tokens);
     usage
 }
 
@@ -366,14 +370,36 @@ mod tests {
     #[test]
     fn merge_usage_prefers_largest_counts() {
         let merged = merge_claude_usage(
-            Some(ClaudeUsage { input_tokens: 10, output_tokens: 5 }),
-            &ClaudeUsage { input_tokens: 12, output_tokens: 3 },
+            Some(ClaudeUsage {
+                input_tokens: 10,
+                output_tokens: 5,
+                cache_creation_input_tokens: Some(100),
+                cache_read_input_tokens: Some(300),
+            }),
+            &ClaudeUsage {
+                input_tokens: 12,
+                output_tokens: 3,
+                cache_creation_input_tokens: Some(200),
+                cache_read_input_tokens: Some(250),
+            },
         );
         assert_eq!(merged.input_tokens, 12);
         assert_eq!(merged.output_tokens, 5);
+        assert_eq!(merged.cache_creation_input_tokens, Some(200));
+        assert_eq!(merged.cache_read_input_tokens, Some(300));
 
-        let merged = merge_claude_usage(None, &ClaudeUsage { input_tokens: 1, output_tokens: 2 });
+        let merged = merge_claude_usage(
+            None,
+            &ClaudeUsage {
+                input_tokens: 1,
+                output_tokens: 2,
+                cache_creation_input_tokens: Some(3),
+                cache_read_input_tokens: Some(4),
+            },
+        );
         assert_eq!(merged.input_tokens, 1);
         assert_eq!(merged.output_tokens, 2);
+        assert_eq!(merged.cache_creation_input_tokens, Some(3));
+        assert_eq!(merged.cache_read_input_tokens, Some(4));
     }
 }
