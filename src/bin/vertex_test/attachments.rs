@@ -366,13 +366,16 @@ mod tests {
     #[test]
     fn merge_usage_prefers_largest_counts() {
         let merged = merge_claude_usage(
-            Some(ClaudeUsage { input_tokens: 10, output_tokens: 5 }),
-            &ClaudeUsage { input_tokens: 12, output_tokens: 3 },
+            Some(ClaudeUsage { input_tokens: 10, output_tokens: 5, ..Default::default() }),
+            &ClaudeUsage { input_tokens: 12, output_tokens: 3, ..Default::default() },
         );
         assert_eq!(merged.input_tokens, 12);
         assert_eq!(merged.output_tokens, 5);
 
-        let merged = merge_claude_usage(None, &ClaudeUsage { input_tokens: 1, output_tokens: 2 });
+        let merged = merge_claude_usage(
+            None,
+            &ClaudeUsage { input_tokens: 1, output_tokens: 2, ..Default::default() },
+        );
         assert_eq!(merged.input_tokens, 1);
         assert_eq!(merged.output_tokens, 2);
     }

@@ -920,6 +920,10 @@ pub struct Usage {
     pub input_tokens: u32,
     #[serde(default)]
     pub output_tokens: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cache_creation_input_tokens: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cache_read_input_tokens: Option<u32>,
 }
 
 impl Usage {
@@ -948,6 +952,9 @@ pub struct ContentBlockDelta {
     /// Thinking text emitted during extended thinking (may be omitted via display config).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub thinking: Option<String>,
+    /// Cryptographic signature chunks emitted after extended thinking text.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub signature: Option<String>,
 }
 
 /// High level SSE event wrapper for Claude streaming responses.
@@ -999,8 +1006,50 @@ mod tests {
 
     #[test]
     fn usage_total_tokens() {
-        let usage = Usage { input_tokens: 10, output_tokens: 20 };
+        let usage = Usage { input_tokens: 10, output_tokens: 20, ..Default::default() };
         assert_eq!(usage.total(), 30);
+    }
+
+    #[test]
+    fn usage_roundtrips_prompt_cache_fields() {
+        let payload = r#"{
+            "input_tokens": 100,
+            "output_tokens": 40,
+            "cache_creation_input_tokens": 512,
+            "cache_read_input_tokens": 384
+        }"#;
+        let usage: Usage = serde_json::from_str(payload).expect("usage should parse");
+        assert_eq!(usage.cache_creation_input_tokens, Some(512));
+        assert_eq!(usage.cache_read_input_tokens, Some(384));
+        let re = serde_json::to_string(&usage).expect("usage should serialize");
+        assert!(re.contains("\"cache_creation_input_tokens\":512"));
+        assert!(re.contains("\"cache_read_input_tokens\":384"));
+    }
+
+    #[test]
+    fn usage_omits_cache_fields_when_absent() {
+        let payload = r#"{"input_tokens": 5, "output_tokens": 7}"#;
+        let usage: Usage = serde_json::from_str(payload).expect("usage should parse");
+        assert_eq!(usage.cache_creation_input_tokens, None);
+        assert_eq!(usage.cache_read_input_tokens, None);
+        let re = serde_json::to_string(&usage).expect("usage should serialize");
+        assert!(!re.contains("cache_creation_input_tokens"));
+        assert!(!re.contains("cache_read_input_tokens"));
+    }
+
+    #[test]
+    fn content_block_delta_roundtrips_thinking_signature() {
+        let payload = r#"{
+            "type": "thinking_delta",
+            "thinking": "reasoning chunk",
+            "signature": "sig-chunk-abc"
+        }"#;
+        let delta: ContentBlockDelta = serde_json::from_str(payload).expect("delta should parse");
+        assert_eq!(delta.block_type, "thinking_delta");
+        assert_eq!(delta.thinking.as_deref(), Some("reasoning chunk"));
+        assert_eq!(delta.signature.as_deref(), Some("sig-chunk-abc"));
+        let re = serde_json::to_string(&delta).expect("delta should serialize");
+        assert!(re.contains("\"signature\":\"sig-chunk-abc\""));
     }
 
     #[test]
