@@ -929,7 +929,19 @@ pub struct Usage {
 impl Usage {
     #[must_use]
     pub const fn total(&self) -> u32 {
-        self.input_tokens + self.output_tokens
+        let cache_creation_input_tokens = match self.cache_creation_input_tokens {
+            Some(tokens) => tokens,
+            None => 0,
+        };
+        let cache_read_input_tokens = match self.cache_read_input_tokens {
+            Some(tokens) => tokens,
+            None => 0,
+        };
+
+        self.input_tokens
+            + self.output_tokens
+            + cache_creation_input_tokens
+            + cache_read_input_tokens
     }
 }
 
@@ -1006,8 +1018,13 @@ mod tests {
 
     #[test]
     fn usage_total_tokens() {
-        let usage = Usage { input_tokens: 10, output_tokens: 20, ..Default::default() };
-        assert_eq!(usage.total(), 30);
+        let usage = Usage {
+            input_tokens: 10,
+            output_tokens: 20,
+            cache_creation_input_tokens: Some(30),
+            cache_read_input_tokens: Some(40),
+        };
+        assert_eq!(usage.total(), 100);
     }
 
     #[test]
@@ -1038,15 +1055,28 @@ mod tests {
     }
 
     #[test]
-    fn content_block_delta_roundtrips_thinking_signature() {
+    fn content_block_delta_roundtrips_thinking() {
         let payload = r#"{
             "type": "thinking_delta",
-            "thinking": "reasoning chunk",
-            "signature": "sig-chunk-abc"
+            "thinking": "reasoning chunk"
         }"#;
         let delta: ContentBlockDelta = serde_json::from_str(payload).expect("delta should parse");
         assert_eq!(delta.block_type, "thinking_delta");
         assert_eq!(delta.thinking.as_deref(), Some("reasoning chunk"));
+        assert!(delta.signature.is_none());
+        let re = serde_json::to_string(&delta).expect("delta should serialize");
+        assert!(!re.contains("signature"));
+    }
+
+    #[test]
+    fn content_block_delta_roundtrips_signature() {
+        let payload = r#"{
+            "type": "signature_delta",
+            "signature": "sig-chunk-abc"
+        }"#;
+        let delta: ContentBlockDelta = serde_json::from_str(payload).expect("delta should parse");
+        assert_eq!(delta.block_type, "signature_delta");
+        assert!(delta.thinking.is_none());
         assert_eq!(delta.signature.as_deref(), Some("sig-chunk-abc"));
         let re = serde_json::to_string(&delta).expect("delta should serialize");
         assert!(re.contains("\"signature\":\"sig-chunk-abc\""));
