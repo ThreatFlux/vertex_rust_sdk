@@ -7,6 +7,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- Updated the development toolchain and Docker builder to stable Rust 1.99.0,
+  retaining the Rust 1.96.0 consumer MSRV and existing Cargo features.
+- Refreshed stable dependencies, transitive security fixes, immutable GitHub
+  Actions pins, and development tool versions.
+- Added worktree-aware repository hooks and a local gate matching hosted
+  Clippy, feature powerset, MSRV, documentation, benchmark, and security checks.
+- Removed the stale RSA advisory exemption; RSA is absent from the dependency
+  graph.
+
+### Added
+
+- A current Vertex AI feature audit and staged implementation plan. The audit
+  documents existing behavior and gaps; it does not add new provider features.
+
 ## [0.9.0] - 2026-08-12
 
 ### Added

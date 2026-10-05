@@ -187,7 +187,6 @@ pub async fn collect_stream_response(
 }
 
 /// Utility to create a simple text stream from a string (for testing)
-#[must_use]
 pub fn create_mock_stream(
     text: &str,
 ) -> Pin<Box<dyn Stream<Item = Result<StreamingResponse>> + Send>> {
@@ -386,7 +385,7 @@ data: {"candidates":[{"content":{"role":"model","parts":[{"text":"Hello"}]},"ind
 
         // Consume first chunk
         chat_stream.next().await;
-        assert!(!chat_stream.accumulated_text().is_empty());
+        assert_ne!(chat_stream.accumulated_text(), "");
 
         // Clear accumulated text
         chat_stream.clear_accumulated();

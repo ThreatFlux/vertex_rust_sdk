@@ -77,12 +77,8 @@ db-urls = ["https://github.com/rustsec/advisory-db"]
 # How to handle yanked crates
 yanked = "warn"
 
-# Ignore specific advisories (add with justification)
-ignore = [
-    # RSA timing sidechannel (Marvin Attack) - no fix available, used by jsonwebtoken
-    # This SDK does not expose network-observable RSA private key operations beyond local JWT signing helpers.
-    "RUSTSEC-2023-0071",
-]
+# No advisory exemptions are required by the current dependency graph.
+ignore = []
 
 # =============================================================================
 # Sources

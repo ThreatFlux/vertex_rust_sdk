@@ -83,7 +83,8 @@ impl EnvAuth {
     ///
     /// Returns an error when any of the required environment variables are
     /// missing.
-    #[allow(clippy::unused_async)]
+    // Preserve the established async API even when the implementation is synchronous.
+    #[allow(clippy::unused_async, clippy::unused_async_trait_impl)]
     pub async fn new() -> Result<Self> {
         // Required environment variables
         let private_key =
@@ -229,7 +230,8 @@ impl ServiceAccountAuth {
     ///
     /// Returns an error when the JSON payload cannot be parsed into a service
     /// account key.
-    #[allow(clippy::unused_async)]
+    // Preserve the established async API even when the implementation is synchronous.
+    #[allow(clippy::unused_async, clippy::unused_async_trait_impl)]
     pub async fn from_json(json: &str) -> Result<Self> {
         let key: ServiceAccountKey =
             serde_json::from_str(json).context("Failed to parse service account key")?;
@@ -339,7 +341,8 @@ impl ApplicationDefaultCredentials {
     /// # Errors
     ///
     /// Propagates errors encountered while initializing the HTTP client.
-    #[allow(clippy::unused_async)]
+    // Preserve the established async API even when the implementation is synchronous.
+    #[allow(clippy::unused_async, clippy::unused_async_trait_impl)]
     pub async fn new() -> Result<Self> {
         Ok(Self { client: Client::new(), token: Arc::new(RwLock::new(None)) })
     }

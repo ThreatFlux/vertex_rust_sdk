@@ -2,14 +2,14 @@ name: CI
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main]
     paths-ignore:
       - "**.md"
       - "LICENSE"
       - ".gitignore"
       - "docs/**"
   pull_request:
-    branches: [main, dev]
+    branches: [main]
     paths-ignore:
       - "**.md"
       - "LICENSE"
@@ -26,7 +26,7 @@ env:
   CARGO_INCREMENTAL: 0
   CARGO_NET_RETRY: 10
   RUSTUP_MAX_RETRIES: 10
-  RUST_STABLE_VERSION: 1.97.1
+  RUST_STABLE_VERSION: 1.99.0
   RUST_MSRV_VERSION: 1.96.0
 
 jobs:
@@ -40,7 +40,7 @@ jobs:
           persist-credentials: false
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
         with:
           toolchain: ${{ env.RUST_STABLE_VERSION }}
           components: rustfmt, clippy
@@ -64,7 +64,7 @@ jobs:
 
       - name: Run clippy
         run: |
-          cargo clippy --all-features --all-targets -- \
+          cargo clippy --locked --all-features --all-targets -- \
             -D warnings \
             -D clippy::all \
             -D clippy::pedantic \
@@ -107,7 +107,7 @@ jobs:
           persist-credentials: false
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
         with:
           toolchain: ${{ matrix.rust }}
 
@@ -121,7 +121,7 @@ jobs:
         if: matrix.os == 'macos'
         run: |
           brew install openssl@3
-          echo "OPENSSL_DIR=$(brew --prefix openssl@3)" >> $GITHUB_ENV
+          echo "OPENSSL_DIR=$(brew --prefix openssl@3)" >> "$GITHUB_ENV"
 
       - name: Cache cargo
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -136,13 +136,13 @@ jobs:
             ${{ runner.os }}-${{ matrix.rust }}-cargo-
 
       - name: Build
-        run: cargo build --all-features --verbose
+        run: cargo build --locked --all-features --verbose
 
       - name: Run tests
-        run: cargo test --all-features --verbose
+        run: cargo test --locked --all-features --verbose
 
       - name: Run doc tests
-        run: cargo test --doc --all-features
+        run: cargo test --locked --doc --all-features
 
   msrv:
     name: MSRV Check
@@ -156,7 +156,7 @@ jobs:
           persist-credentials: false
 
       - name: Install MSRV toolchain
-        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
         with:
           toolchain: ${{ env.RUST_MSRV_VERSION }}
 
@@ -170,7 +170,7 @@ jobs:
           key: ${{ runner.os }}-msrv-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Check MSRV
-        run: cargo +${{ env.RUST_MSRV_VERSION }} check --workspace --all-features
+        run: cargo +${{ env.RUST_MSRV_VERSION }} check --locked --workspace --all-features --all-targets
 
   features:
     name: Feature Checks
@@ -183,14 +183,14 @@ jobs:
           persist-credentials: false
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
         with:
           toolchain: ${{ env.RUST_STABLE_VERSION }}
 
       - name: Install cargo-hack
-        uses: taiki-e/install-action@82cd3e7658a6f96c86c0234aeeda1748937cb0a1 # v2.85.13
+        uses: taiki-e/install-action@e407f7bafb71fd004bc5c2da3032e5470cbb6ef0 # v2.87.24
         with:
-          tool: cargo-hack
+          tool: cargo-hack@0.6.45
 
       - name: Cache cargo
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -203,10 +203,10 @@ jobs:
           key: ${{ runner.os }}-features-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Check no default features
-        run: cargo check --workspace --no-default-features
+        run: cargo check --locked --workspace --no-default-features
 
       - name: Check all features
-        run: cargo check --workspace --all-features
+        run: cargo check --locked --workspace --all-features --all-targets
 
       - name: Check feature combinations
         run: cargo hack check --workspace --feature-powerset --no-dev-deps
@@ -222,17 +222,17 @@ jobs:
           persist-credentials: false
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
         with:
           toolchain: ${{ env.RUST_STABLE_VERSION }}
 
       - name: Build documentation
-        run: cargo doc --all-features --no-deps
+        run: cargo doc --locked --all-features --no-deps
         env:
           RUSTDOCFLAGS: -D warnings
 
       - name: Test documentation examples
-        run: cargo test --doc --all-features
+        run: cargo test --locked --doc --all-features
 
   bench:
     name: Benchmarks
@@ -245,9 +245,9 @@ jobs:
           persist-credentials: false
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
         with:
           toolchain: ${{ env.RUST_STABLE_VERSION }}
 
       - name: Check benchmarks compile
-        run: cargo bench --all-features --no-run
+        run: cargo bench --locked --all-features --no-run

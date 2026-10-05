@@ -95,7 +95,8 @@ impl VertexClient {
         Self::build_with_auth(config, auth_provider).await
     }
 
-    #[allow(clippy::unused_async)]
+    // Preserve the established async API even when the implementation is synchronous.
+    #[allow(clippy::unused_async, clippy::unused_async_trait_impl)]
     async fn build_with_auth(config: Config, auth_provider: Box<dyn AuthProvider>) -> Result<Self> {
         if let Err(err) = config.validate() {
             return Err(VertexError::configuration(err.to_string()));
