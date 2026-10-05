@@ -123,10 +123,15 @@ jobs:
 
           # An existing tag is never moved, so refuse to build or publish a
           # different commit under it (checkout fetched all tags).
-          TAG_SHA="$(git rev-parse -q --verify "refs/tags/${TAG}^{commit}" || true)"
-          if [[ -n "$TAG_SHA" && "$TAG_SHA" != "$SOURCE_SHA" ]]; then
-            echo "Tag ${TAG} points to ${TAG_SHA}, not the selected source commit ${SOURCE_SHA}" >&2
-            exit 1
+          if git show-ref --verify --quiet "refs/tags/${TAG}"; then
+            if ! TAG_SHA="$(git rev-parse -q --verify "refs/tags/${TAG}^{commit}")"; then
+              echo "Tag ${TAG} does not point to a commit" >&2
+              exit 1
+            fi
+            if [[ "$TAG_SHA" != "$SOURCE_SHA" ]]; then
+              echo "Tag ${TAG} points to ${TAG_SHA}, not the selected source commit ${SOURCE_SHA}" >&2
+              exit 1
+            fi
           fi
 
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
@@ -137,6 +142,14 @@ jobs:
             else
               gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$SOURCE_SHA" --title "$TITLE" --notes-file release_notes.md
             fi
+          fi
+
+          # Re-check the tag on GitHub: a concurrent run or a manual push may
+          # have created it after checkout, in which case --target is ignored.
+          REMOTE_TAG_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/commits/refs/tags/${TAG}" --jq .sha)"
+          if [[ "$REMOTE_TAG_SHA" != "$SOURCE_SHA" ]]; then
+            echo "Tag ${TAG} points to ${REMOTE_TAG_SHA} on GitHub, not the selected source commit ${SOURCE_SHA}" >&2
+            exit 1
           fi
 
   build:
