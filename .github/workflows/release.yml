@@ -132,6 +132,18 @@ jobs:
               echo "Tag ${TAG} points to ${TAG_SHA}, not the selected source commit ${SOURCE_SHA}" >&2
               exit 1
             fi
+          else
+            # Create the tag before any release is published. Ref creation is
+            # atomic, so if a concurrent run or a manual push created it first,
+            # this fails and the check below compares against that tag.
+            gh api "repos/${GITHUB_REPOSITORY}/git/refs" -f ref="refs/tags/${TAG}" -f sha="${SOURCE_SHA}" >/dev/null || true
+          fi
+
+          # The tag on GitHub, not the checkout snapshot, decides the release.
+          REMOTE_TAG_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/commits/refs/tags/${TAG}" --jq .sha)"
+          if [[ "$REMOTE_TAG_SHA" != "$SOURCE_SHA" ]]; then
+            echo "Tag ${TAG} points to ${REMOTE_TAG_SHA} on GitHub, not the selected source commit ${SOURCE_SHA}" >&2
+            exit 1
           fi
 
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
@@ -142,14 +154,6 @@ jobs:
             else
               gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$SOURCE_SHA" --title "$TITLE" --notes-file release_notes.md
             fi
-          fi
-
-          # Re-check the tag on GitHub: a concurrent run or a manual push may
-          # have created it after checkout, in which case --target is ignored.
-          REMOTE_TAG_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/commits/refs/tags/${TAG}" --jq .sha)"
-          if [[ "$REMOTE_TAG_SHA" != "$SOURCE_SHA" ]]; then
-            echo "Tag ${TAG} points to ${REMOTE_TAG_SHA} on GitHub, not the selected source commit ${SOURCE_SHA}" >&2
-            exit 1
           fi
 
   build:

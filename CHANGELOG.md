@@ -21,8 +21,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   generates SBOMs for, and publishes that exact commit, matching the release
   tag even if a source branch moves mid-release. It refuses to run when the
   release tag already exists on a different commit or does not point to a
-  commit, and re-checks the tag on GitHub after creating the release so a
-  concurrent run cannot publish under another commit's tag.
+  commit. It creates a missing tag through the API and checks the tag on
+  GitHub before publishing, so a concurrent run cannot publish under another
+  commit's tag.
 
 ### Added
 
