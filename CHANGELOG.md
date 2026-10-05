@@ -17,6 +17,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   Clippy, feature powerset, MSRV, documentation, benchmark, and security checks.
 - Removed the stale RSA advisory exemption; RSA is absent from the dependency
   graph.
+- The release workflow resolves its source ref to one commit and builds,
+  generates SBOMs for, and publishes that exact commit, matching the release
+  tag even if a source branch moves mid-release.
 
 ### Added
 
