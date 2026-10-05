@@ -121,6 +121,14 @@ jobs:
             IS_PRERELEASE="true"
           fi
 
+          # An existing tag is never moved, so refuse to build or publish a
+          # different commit under it (checkout fetched all tags).
+          TAG_SHA="$(git rev-parse -q --verify "refs/tags/${TAG}^{commit}" || true)"
+          if [[ -n "$TAG_SHA" && "$TAG_SHA" != "$SOURCE_SHA" ]]; then
+            echo "Tag ${TAG} points to ${TAG_SHA}, not the selected source commit ${SOURCE_SHA}" >&2
+            exit 1
+          fi
+
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TITLE" --notes-file release_notes.md
           else

@@ -19,7 +19,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   graph.
 - The release workflow resolves its source ref to one commit and builds,
   generates SBOMs for, and publishes that exact commit, matching the release
-  tag even if a source branch moves mid-release.
+  tag even if a source branch moves mid-release. It refuses to run when the
+  release tag already exists on a different commit.
 
 ### Added
 
