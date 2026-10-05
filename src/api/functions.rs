@@ -381,7 +381,7 @@ mod tests {
     fn test_calculator_function_creation() {
         let func = create_calculator_function();
         assert_eq!(func.name, "calculate");
-        assert!(!func.description.is_empty());
+        assert_ne!(func.description, "");
         assert!(!func.parameters.is_null());
     }
 
@@ -389,7 +389,7 @@ mod tests {
     fn test_weather_function_creation() {
         let func = create_weather_function();
         assert_eq!(func.name, "get_current_weather");
-        assert!(!func.description.is_empty());
+        assert_ne!(func.description, "");
         assert!(!func.parameters.is_null());
     }
 

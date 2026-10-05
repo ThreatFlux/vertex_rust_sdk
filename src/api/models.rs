@@ -282,7 +282,8 @@ impl<'a> ModelsApi<'a> {
     ///
     /// This function currently never returns an error and always yields the
     /// built-in list of Gemini models.
-    #[allow(clippy::unused_async)]
+    // Preserve the established async API even when the implementation is synchronous.
+    #[allow(clippy::unused_async, clippy::unused_async_trait_impl)]
     pub async fn get_gemini_models(&self) -> Result<Vec<Model>> {
         // For now, return a hardcoded list of known Gemini models
         // since the list API doesn't return them

@@ -142,6 +142,6 @@ mod tests {
         let mut buffer = Vec::new();
         write_grounding_metadata(&metadata, &mut buffer).unwrap();
 
-        assert!(buffer.is_empty());
+        assert_eq!(buffer, [] as [u8; 0]);
     }
 }

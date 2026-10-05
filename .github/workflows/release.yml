@@ -26,7 +26,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
-  RUST_VERSION: 1.97.1
+  RUST_VERSION: 1.99.0
   BINARY_NAME: ${{ vars.RUST_TEMPLATE_BINARY_NAME || 'vertex' }}
   BINARY_PACKAGE: ${{ vars.RUST_TEMPLATE_BINARY_PACKAGE || 'threatflux-vertex-rust-sdk' }}
   SBOM_MANIFEST_PATH: ${{ vars.RUST_TEMPLATE_SBOM_MANIFEST_PATH || 'Cargo.toml' }}
@@ -38,15 +38,21 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
-      source_ref: ${{ steps.source_ref.outputs.source_ref }}
+      source_sha: ${{ steps.source_sha.outputs.source_sha }}
     steps:
       - name: Determine source ref
         id: source_ref
+        env:
+          INPUT_SOURCE_REF: ${{ inputs.source_ref }}
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.source_ref }}" ]]; then
-            SOURCE_REF="${{ github.event.inputs.source_ref }}"
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" && -n "$INPUT_SOURCE_REF" ]]; then
+            SOURCE_REF="$INPUT_SOURCE_REF"
           else
             SOURCE_REF="${GITHUB_REF}"
+          fi
+          if [[ "$SOURCE_REF" == *$'\n'* || "$SOURCE_REF" == *$'\r'* ]]; then
+            echo "Source ref must be one line" >&2
+            exit 1
           fi
           echo "source_ref=${SOURCE_REF}" >> "$GITHUB_OUTPUT"
 
@@ -57,27 +63,32 @@ jobs:
           persist-credentials: false
           ref: ${{ steps.source_ref.outputs.source_ref }}
 
+      # Resolve the ref once; the tag and every downstream job use this exact
+      # commit, so a moving branch cannot make assets differ from the tag.
+      - name: Resolve source commit
+        id: source_sha
+        run: echo "source_sha=$(git rev-parse --verify HEAD)" >> "$GITHUB_OUTPUT"
+
       - name: Determine version
         id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            VERSION="${{ github.event.inputs.version }}"
+          if [ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]; then
+            VERSION="$INPUT_VERSION"
           else
             VERSION=${GITHUB_REF#refs/tags/v}
           fi
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Validate version format
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
           if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+)?$ ]]; then
             echo "Invalid version format: $VERSION"
             exit 1
           fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Generate release notes
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
           echo "## Release v$VERSION" > release_notes.md
           echo "" >> release_notes.md
           if [ -f CHANGELOG.md ]; then
@@ -96,12 +107,14 @@ jobs:
       - name: Create or update GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+          SOURCE_SHA: ${{ steps.source_sha.outputs.source_sha }}
+          INPUT_PRERELEASE: ${{ inputs.prerelease && 'true' || 'false' }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
           TAG="v${VERSION}"
           TITLE="Release v${VERSION}"
           IS_PRERELEASE="false"
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.prerelease && 'true' || 'false' }}" == "true" ]]; then
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" && "$INPUT_PRERELEASE" == "true" ]]; then
             IS_PRERELEASE="true"
           fi
           if [[ "${VERSION}" == *-* ]]; then
@@ -112,9 +125,9 @@ jobs:
             gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TITLE" --notes-file release_notes.md
           else
             if [[ "${IS_PRERELEASE}" == "true" ]]; then
-              gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TITLE" --notes-file release_notes.md --prerelease
+              gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$SOURCE_SHA" --title "$TITLE" --notes-file release_notes.md --prerelease
             else
-              gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TITLE" --notes-file release_notes.md
+              gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$SOURCE_SHA" --title "$TITLE" --notes-file release_notes.md
             fi
           fi
 
@@ -151,10 +164,10 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          ref: ${{ needs.prepare.outputs.source_ref }}
+          ref: ${{ needs.prepare.outputs.source_sha }}
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # v1
         with:
           toolchain: ${{ env.RUST_VERSION }}
           targets: ${{ matrix.target }}
@@ -167,16 +180,16 @@ jobs:
 
       - name: Install cross
         if: matrix.use_cross
-        run: cargo install cross
+        run: cargo install cross --locked --version 0.2.5
 
       - name: Build (cross)
         if: matrix.use_cross
         shell: bash
         run: |
           if [[ -n "${BINARY_PACKAGE}" ]]; then
-            cross build --release --target ${{ matrix.target }} -p "${BINARY_PACKAGE}" --bin "${BINARY_NAME}" --all-features
+            cross build --locked --release --target ${{ matrix.target }} -p "${BINARY_PACKAGE}" --bin "${BINARY_NAME}" --all-features
           else
-            cross build --release --target ${{ matrix.target }} --bin "${BINARY_NAME}" --all-features || cross build --release --target ${{ matrix.target }} --all-features
+            cross build --locked --release --target ${{ matrix.target }} --bin "${BINARY_NAME}" --all-features || cross build --locked --release --target ${{ matrix.target }} --all-features
           fi
 
       - name: Build (native)
@@ -184,9 +197,9 @@ jobs:
         shell: bash
         run: |
           if [[ -n "${BINARY_PACKAGE}" ]]; then
-            cargo build --release --target ${{ matrix.target }} -p "${BINARY_PACKAGE}" --bin "${BINARY_NAME}" --all-features
+            cargo build --locked --release --target ${{ matrix.target }} -p "${BINARY_PACKAGE}" --bin "${BINARY_NAME}" --all-features
           else
-            cargo build --release --target ${{ matrix.target }} --bin "${BINARY_NAME}" --all-features || cargo build --release --target ${{ matrix.target }} --all-features
+            cargo build --locked --release --target ${{ matrix.target }} --bin "${BINARY_NAME}" --all-features || cargo build --locked --release --target ${{ matrix.target }} --all-features
           fi
 
       - name: Package (Unix)
@@ -194,11 +207,11 @@ jobs:
         shell: bash
         run: |
           mkdir -p dist
-          cp target/${{ matrix.target }}/release/${BINARY_NAME} dist/
+          cp "target/${{ matrix.target }}/release/${BINARY_NAME}" dist/
           cd dist
-          tar czf ../${BINARY_NAME}-${{ matrix.artifact }}.tar.gz *
+          tar czf "../${BINARY_NAME}-${{ matrix.artifact }}.tar.gz" ./*
           cd ..
-          shasum -a 256 ${BINARY_NAME}-${{ matrix.artifact }}.tar.gz > ${BINARY_NAME}-${{ matrix.artifact }}.tar.gz.sha256
+          shasum -a 256 "${BINARY_NAME}-${{ matrix.artifact }}.tar.gz" > "${BINARY_NAME}-${{ matrix.artifact }}.tar.gz.sha256"
 
       - name: Package (Windows)
         if: runner.os == 'Windows'
@@ -236,22 +249,23 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          ref: ${{ needs.prepare.outputs.source_ref }}
+          ref: ${{ needs.prepare.outputs.source_sha }}
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # v1
         with:
           toolchain: ${{ env.RUST_VERSION }}
 
       - name: Install cargo-cyclonedx
-        uses: taiki-e/install-action@82cd3e7658a6f96c86c0234aeeda1748937cb0a1 # v2.85.13
+        uses: taiki-e/install-action@e407f7bafb71fd004bc5c2da3032e5470cbb6ef0 # v2.87.24
         with:
-          tool: cargo-cyclonedx@0.5.8
+          tool: cargo-cyclonedx@0.5.9
 
       - name: Generate SBOM files
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           make sbom BINARY_NAME="${BINARY_NAME}" SBOM_MANIFEST_PATH="${SBOM_MANIFEST_PATH}"
-          VERSION="${{ needs.prepare.outputs.version }}"
           mv "sbom/${BINARY_NAME}-sbom.json" "sbom/${BINARY_NAME}-v${VERSION}.cdx.json"
 
       - name: Upload SBOM artifacts
@@ -278,11 +292,12 @@ jobs:
           shopt -s globstar nullglob
           for file in artifacts/**/*; do
             if [ -f "$file" ]; then
-              gh release upload "v${{ needs.prepare.outputs.version }}" "$file" --repo "$GITHUB_REPOSITORY" --clobber
+              gh release upload "v${VERSION}" "$file" --repo "$GITHUB_REPOSITORY" --clobber
             fi
           done
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.prepare.outputs.version }}
 
   publish:
     name: Publish to crates.io
@@ -294,17 +309,17 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          ref: ${{ needs.prepare.outputs.source_ref }}
+          ref: ${{ needs.prepare.outputs.source_sha }}
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # v1
         with:
           toolchain: ${{ env.RUST_VERSION }}
 
       - name: Verify package
         run: |
-          cargo package --all-features
-          cargo package --list
+          cargo package --locked --all-features
+          cargo package --locked --list
 
       - name: Publish to crates.io
         env:

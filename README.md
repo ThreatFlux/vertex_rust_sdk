@@ -211,6 +211,7 @@ provides a longer guide to the interactive `vertex-chat` binary.
 
 - [API reference](https://docs.rs/threatflux-vertex-rust-sdk)
 - [API coverage and boundaries](docs/api-coverage.md)
+- [Current API feature audit and implementation plan](docs/sdk-feature-audit.md)
 - [Authentication, configuration, retries, and security](docs/configuration.md)
 - [Interactive chat CLI](CLI.md)
 - [Contributing guide](CONTRIBUTING.md)
@@ -219,7 +220,13 @@ provides a longer guide to the interactive `vertex-chat` binary.
 
 ## Development
 
+The repository pins Rust 1.99.0 for development. Consumers require Rust 1.96.0
+or newer.
+
 ```bash
+make dev-setup    # pinned development tools
+make hooks-install # repository hooks, including linked worktrees
+make ci-local    # hosted lint, tests, feature powerset, MSRV, docs, benchmarks, security
 make ci-quick     # documentation contract, formatting, lint, and cargo check
 make test         # all feature-enabled tests
 make test-doc     # rustdoc examples
