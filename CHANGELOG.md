@@ -7,6 +7,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Security
+
+- `release.yml` no longer has a `source_ref` dispatch input. Every job builds
+  the commit the run started on: the pushed tag, or the branch or tag picked
+  with `gh workflow run release.yml --ref <ref>`. A dispatch can no longer
+  point the build, SBOM, and publish jobs at another revision, such as an
+  unreviewed pull request head, while they run with the default branch's cache
+  scope. To rebuild an existing tag, dispatch on that tag. Auto Release is
+  unaffected: the App's tag push starts `release.yml` on the tag, and the
+  `GITHUB_TOKEN` fallback dispatches on the tag without the input.
+
 ## [0.10.1] - 2026-10-06
 
 A maintenance release covering the toolchain, dependencies, container image,
