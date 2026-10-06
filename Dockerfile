@@ -62,8 +62,10 @@ LABEL org.opencontainers.image.title="${OCI_IMAGE_TITLE}" \
       org.opencontainers.image.source="${OCI_IMAGE_SOURCE}"
 
 # Apply pending Debian security updates: the slim base image is refreshed less
-# often than bookworm-security publishes fixes.
-RUN apt-get update && apt-get upgrade -y && apt-get install -y \
+# often than bookworm-security publishes fixes. Package versions are not pinned
+# so each build takes the current security release.
+# hadolint ignore=DL3008
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     ca-certificates \
     libssl3 \
     tini \
