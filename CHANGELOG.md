@@ -7,6 +7,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-10-06
+
+A maintenance release covering the toolchain, dependencies, container image,
+and release automation. The SDK API and behavior are unchanged from 0.10.0.
+
 ### Changed
 
 - Updated the development toolchain and Docker builder to stable Rust 1.99.0,
@@ -62,7 +67,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   (trixie). The CLI binary and SBOM are root-owned and read-only to the runtime
   user.
 
-## [0.9.0] - 2026-08-12
+## [0.10.0] - 2026-08-12
+
+These changes shipped as 0.10.0. The manifest was set to 0.9.0, but the
+automated release bumped the minor version again for the `feat` commit, so
+0.9.0 was never tagged or published.
 
 ### Added
 
