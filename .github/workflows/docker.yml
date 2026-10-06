@@ -28,6 +28,8 @@ env:
   BINARY_NAME: ${{ vars.RUST_TEMPLATE_BINARY_NAME || 'vertex' }}
   BINARY_PACKAGE: ${{ vars.RUST_TEMPLATE_BINARY_PACKAGE || 'threatflux-vertex-rust-sdk' }}
   SBOM_MANIFEST_PATH: ${{ vars.RUST_TEMPLATE_SBOM_MANIFEST_PATH || 'Cargo.toml' }}
+  # CLI name symlinked next to the fixed /usr/local/bin/app entrypoint.
+  CLI_NAME: ${{ vars.RUST_TEMPLATE_CLI_NAME || vars.RUST_TEMPLATE_BINARY_NAME || 'vertex' }}
   OCI_IMAGE_TITLE: ThreatFlux Vertex Rust SDK CLI
   OCI_IMAGE_DESCRIPTION: ThreatFlux Vertex AI Rust SDK command-line interface
   OCI_IMAGE_VENDOR: ThreatFlux
@@ -129,6 +131,7 @@ jobs:
             BINARY_NAME=${{ env.BINARY_NAME }}
             BINARY_PACKAGE=${{ env.BINARY_PACKAGE }}
             SBOM_MANIFEST_PATH=${{ env.SBOM_MANIFEST_PATH }}
+            CLI_NAME=${{ env.CLI_NAME }}
 
       - name: Build and export (PRs)
         if: github.event_name == 'pull_request'
@@ -148,6 +151,7 @@ jobs:
             BINARY_NAME=${{ env.BINARY_NAME }}
             BINARY_PACKAGE=${{ env.BINARY_PACKAGE }}
             SBOM_MANIFEST_PATH=${{ env.SBOM_MANIFEST_PATH }}
+            CLI_NAME=${{ env.CLI_NAME }}
             OCI_IMAGE_TITLE=${{ env.OCI_IMAGE_TITLE }}
             OCI_IMAGE_DESCRIPTION=${{ env.OCI_IMAGE_DESCRIPTION }}
             OCI_IMAGE_VENDOR=${{ env.OCI_IMAGE_VENDOR }}
@@ -172,6 +176,7 @@ jobs:
             BINARY_NAME=${{ env.BINARY_NAME }}
             BINARY_PACKAGE=${{ env.BINARY_PACKAGE }}
             SBOM_MANIFEST_PATH=${{ env.SBOM_MANIFEST_PATH }}
+            CLI_NAME=${{ env.CLI_NAME }}
             OCI_IMAGE_TITLE=${{ env.OCI_IMAGE_TITLE }}
             OCI_IMAGE_DESCRIPTION=${{ env.OCI_IMAGE_DESCRIPTION }}
             OCI_IMAGE_VENDOR=${{ env.OCI_IMAGE_VENDOR }}
@@ -219,6 +224,26 @@ jobs:
       - name: Pull image
         if: github.event_name != 'pull_request'
         run: docker pull ${{ env.REGISTRY }}/${{ needs.build.outputs.image_name }}:${{ steps.sha.outputs.short }}
+
+      # The runtime is distroless (no shell), so check the CLI, the non-root
+      # user and the embedded SBOM from outside the container.
+      - name: Smoke test image
+        env:
+          IMAGE: ${{ github.event_name == 'pull_request' && format('{0}:scan', needs.build.outputs.image_name) || format('{0}/{1}:{2}', env.REGISTRY, needs.build.outputs.image_name, steps.sha.outputs.short) }}
+        run: |
+          set -euo pipefail
+          docker run --rm "${IMAGE}" --version
+          docker run --rm "${IMAGE}" --help > /dev/null
+          docker run --rm --entrypoint "/usr/local/bin/${CLI_NAME}" "${IMAGE}" --version
+          image_user="$(docker image inspect --format '{{ .Config.User }}' "${IMAGE}")"
+          if [[ "${image_user}" != "65532:65532" ]]; then
+            echo "Image runs as '${image_user}', expected the distroless nonroot user 65532:65532" >&2
+            exit 1
+          fi
+          container="$(docker create "${IMAGE}")"
+          trap 'docker rm "${container}" > /dev/null' EXIT
+          docker cp "${container}:/usr/share/doc/app/sbom.cdx.json" "${RUNNER_TEMP}/sbom.cdx.json"
+          jq -e '.bomFormat == "CycloneDX" and (.components | length > 0)' "${RUNNER_TEMP}/sbom.cdx.json" > /dev/null
 
       - name: Run Trivy scanner
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0

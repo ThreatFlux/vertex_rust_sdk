@@ -11,6 +11,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Updated the development toolchain and Docker builder to stable Rust 1.99.0,
   retaining the Rust 1.96.0 consumer MSRV and existing Cargo features.
+- The Docker image builds on `rust:1.99.0-trixie` and runs on distroless
+  `gcr.io/distroless/cc-debian13:nonroot`, both pinned by digest. The runtime
+  has no shell or package manager and runs as uid/gid 65532 in `/data`. Its
+  entrypoint is now the CLI itself, so arguments go straight to it
+  (`docker run <image> --help`); `/usr/local/bin/vertex` links to the binary.
 - Refreshed stable dependencies, transitive security fixes, immutable GitHub
   Actions pins, and development tool versions.
 - Added worktree-aware repository hooks and a local gate matching hosted
@@ -45,8 +50,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Security
 
-- The Docker runtime image applies pending Debian security updates when it is
-  built, instead of waiting for the next `debian:bookworm-slim` refresh.
+- The Docker runtime image moves off Debian 12 (bookworm), whose packages
+  carried open Trivy findings with no Debian 12 fix, to distroless Debian 13
+  (trixie). The CLI binary and SBOM are root-owned and read-only to the runtime
+  user.
 
 ## [0.9.0] - 2026-08-12
 

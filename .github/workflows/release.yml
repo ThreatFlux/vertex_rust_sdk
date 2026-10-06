@@ -508,9 +508,18 @@ jobs:
           context: .
           platforms: linux/amd64
           push: false
+          load: true
+          tags: release-dry-run:local
           build-args: |
             VERSION=v${{ needs.prepare.outputs.version }}
             VCS_REF=${{ needs.prepare.outputs.source_sha }}
             BINARY_NAME=${{ env.BINARY_NAME }}
             BINARY_PACKAGE=${{ env.BINARY_PACKAGE }}
             SBOM_MANIFEST_PATH=${{ env.SBOM_MANIFEST_PATH }}
+            CLI_NAME=${{ vars.RUST_TEMPLATE_CLI_NAME || env.BINARY_NAME }}
+
+      - name: Smoke test runtime image
+        run: |
+          set -euo pipefail
+          docker run --rm release-dry-run:local --version
+          docker run --rm release-dry-run:local --help > /dev/null
