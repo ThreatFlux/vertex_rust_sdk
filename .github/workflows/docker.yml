@@ -317,8 +317,10 @@ jobs:
             pushed="$(jq -r '.manifests[].platform // empty
               | [.os, .architecture, .variant] | map(select(. != null and . != "")) | join("/")' <<< "${index}")"
           else
-            # A single-platform manifest, not an index: nothing to compare.
-            pushed="${PLATFORMS}"
+            # A single-platform manifest, not an index: read its platform from
+            # the image config, so a multi-platform request fails below.
+            pushed="$(docker buildx imagetools inspect --format '{{ json .Image }}' "${IMAGE}" |
+              jq -r '[.os, .architecture, .variant] | map(select(. != null and . != "")) | join("/")')"
           fi
           echo "Pushed platforms: $(tr '\n' ' ' <<< "${pushed}")"
           native="$(docker version --format '{{ .Server.Os }}/{{ .Server.Arch }}')"
