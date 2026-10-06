@@ -7,6 +7,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.10.2] - 2026-10-06
+
+Container images now ship for `linux/arm64` as well as `linux/amd64`. The SDK
+API and behavior are unchanged from 0.10.1.
+
+### Changed
+
+- The Docker workflow publishes multi-platform images for `linux/amd64` and
+  `linux/arm64`, matching rust-cicd-template. Images up to 0.10.1 were
+  `linux/amd64` only. The `arm64` image is built under QEMU emulation, and
+  before the image is signed the workflow checks that the pushed index holds
+  every platform and runs each platform's CLI (`--version`, `--help`, and the
+  non-root user check). Pull requests still build `linux/amd64` only. The
+  `RUST_TEMPLATE_DOCKER_PLATFORMS` repository variable overrides the list.
+
 ### Security
 
 - `release.yml` no longer has a `source_ref` dispatch input. Every job builds
