@@ -19,6 +19,9 @@ on:
     - cron: "0 4 * * 1"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 env:
   REGISTRY: ghcr.io
   DOCKER_BUILDKIT: 1
@@ -263,6 +266,9 @@ jobs:
     needs: build
     runs-on: ${{ vars.RUST_TEMPLATE_RUNNER_UBUNTU || 'ubuntu-latest' }}
     if: github.event_name != 'pull_request'
+    permissions:
+      contents: read
+      packages: read
     steps:
       - name: Get short SHA
         id: sha
