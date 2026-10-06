@@ -48,9 +48,11 @@ jobs:
   build:
     name: Build Docker Image
     runs-on: ${{ vars.RUST_TEMPLATE_RUNNER_UBUNTU || 'ubuntu-latest' }}
-    # The linux/arm64 image compiles under QEMU emulation, roughly ten times
-    # slower than the native amd64 build (about 50 minutes instead of 5).
-    timeout-minutes: 120
+    # The linux/arm64 image compiles under QEMU emulation, sharing the runner
+    # with the native amd64 build. The first multi-platform build on main took
+    # 94 minutes (arm64: cargo build 67, cargo-cyclonedx install 23), so leave
+    # roughly twice that.
+    timeout-minutes: 180
     permissions:
       contents: read
       packages: write
