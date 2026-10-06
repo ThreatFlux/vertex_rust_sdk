@@ -92,6 +92,27 @@ jobs:
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
+      # The crate is published at its Cargo.toml version, so a release must
+      # match it. A dry run may rehearse a version that is not bumped yet, so
+      # it only warns.
+      - name: Check manifest version
+        id: manifest
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          MANIFEST_VERSION="$(python3 -c 'import tomllib; v = tomllib.load(open("Cargo.toml", "rb")).get("package", {}).get("version"); print(v if isinstance(v, str) else "")')"
+          echo "version=${MANIFEST_VERSION}" >> "$GITHUB_OUTPUT"
+          if [[ -n "$PUBLISH_PACKAGES" || -z "$MANIFEST_VERSION" ]]; then
+            echo "No single root package version to check (PUBLISH_PACKAGES set or no literal [package] version)"
+          elif [[ "$MANIFEST_VERSION" != "$VERSION" ]]; then
+            if [[ "$DRY_RUN" == "true" ]]; then
+              echo "::warning::Cargo.toml version ${MANIFEST_VERSION} does not match release version ${VERSION}; the dry run packages and verifies ${MANIFEST_VERSION}"
+            else
+              echo "Cargo.toml version ${MANIFEST_VERSION} does not match release version ${VERSION}" >&2
+              exit 1
+            fi
+          fi
+
       - name: Generate release notes
         env:
           VERSION: ${{ steps.version.outputs.version }}
@@ -115,6 +136,7 @@ jobs:
         if: env.DRY_RUN == 'true'
         env:
           VERSION: ${{ steps.version.outputs.version }}
+          MANIFEST_VERSION: ${{ steps.manifest.outputs.version }}
           SOURCE_SHA: ${{ steps.source_sha.outputs.source_sha }}
         run: |
           echo "Dry run: building ${SOURCE_SHA} as v${VERSION} without creating or checking the tag or release"
@@ -122,6 +144,8 @@ jobs:
             echo "### Release dry run: v${VERSION}"
             echo
             echo "Source commit: \`${SOURCE_SHA}\`. No tag, GitHub Release, release assets, crates.io package, or image is published."
+            echo
+            echo "Cargo.toml version packaged and verified: \`${MANIFEST_VERSION:-unknown}\`."
             echo
             cat release_notes.md
           } >> "$GITHUB_STEP_SUMMARY"

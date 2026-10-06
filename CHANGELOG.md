@@ -27,9 +27,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Manual `release.yml` dispatches accept `dry_run`, which builds and packages
   every target, generates SBOMs, runs `cargo publish --dry-run`, and builds the
   Docker image without creating a tag or GitHub Release, uploading assets,
-  publishing to crates.io, or pushing an image. Manual `auto-release.yml`
-  dispatches accept `dry_run` to report the next release without committing,
-  tagging, or releasing.
+  publishing to crates.io, or pushing an image. A real release stops before
+  tagging when the requested version differs from the `Cargo.toml` version; a
+  dry run only warns. Manual `auto-release.yml` dispatches accept `dry_run` to
+  report the next release without committing, tagging, or releasing.
 
 ### Added
 
