@@ -45,7 +45,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Automatic releases are cut with the organization's GitHub App token through
   `github_actions` v0.7.7. The release tag the App pushes starts `release.yml`
   and `docker.yml` through their tag triggers instead of an explicit dispatch,
-  so each runs once per release.
+  so each runs once per release. The Docker workflow skips the App's
+  `chore: release` commit on `main`, because the tag's run builds, scans and
+  signs that commit.
 
 ### Added
 
