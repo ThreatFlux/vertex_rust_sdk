@@ -15,10 +15,6 @@ on:
         description: Version to release (e.g. 1.0.0)
         required: true
         type: string
-      source_ref:
-        description: Git ref to build from
-        required: false
-        type: string
       prerelease:
         description: Is this a pre-release?
         required: false
@@ -49,33 +45,21 @@ jobs:
       contents: write # Creates the release tag and the GitHub Release.
     outputs:
       version: ${{ steps.version.outputs.version }}
-      source_sha: ${{ steps.source_sha.outputs.source_sha }}
     steps:
-      - name: Determine source ref
-        id: source_ref
-        env:
-          INPUT_SOURCE_REF: ${{ inputs.source_ref }}
-        run: |
-          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" && -n "$INPUT_SOURCE_REF" ]]; then
-            SOURCE_REF="$INPUT_SOURCE_REF"
-          else
-            SOURCE_REF="${GITHUB_REF}"
-          fi
-          if [[ "$SOURCE_REF" == *$'\n'* || "$SOURCE_REF" == *$'\r'* ]]; then
-            echo "Source ref must be one line" >&2
-            exit 1
-          fi
-          echo "source_ref=${SOURCE_REF}" >> "$GITHUB_OUTPUT"
-
+      # Every job builds the workflow's own commit (GITHUB_SHA): the pushed
+      # tag, or the head of the branch or tag chosen with
+      # `gh workflow run release.yml --ref <ref>` when the run was dispatched.
+      # There is no input for building some other revision, so a dispatch
+      # cannot build an unreviewed ref with the default branch's cache scope,
+      # and a branch that moves mid-run cannot make the jobs build different
+      # commits.
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
-          ref: ${{ steps.source_ref.outputs.source_ref }}
 
-      # Resolve the ref once; the tag and every downstream job use this exact
-      # commit, so a moving branch cannot make assets differ from the tag.
+      # The tag must name this exact commit, the one every other job builds.
       - name: Resolve source commit
         id: source_sha
         run: echo "source_sha=$(git rev-parse --verify HEAD)" >> "$GITHUB_OUTPUT"
@@ -180,7 +164,7 @@ jobs:
               exit 1
             fi
             if [[ "$TAG_SHA" != "$SOURCE_SHA" ]]; then
-              echo "Tag ${TAG} points to ${TAG_SHA}, not the selected source commit ${SOURCE_SHA}" >&2
+              echo "Tag ${TAG} points to ${TAG_SHA}, not the source commit ${SOURCE_SHA}. Dispatch on the tag (gh workflow run release.yml --ref ${TAG}) to rebuild it." >&2
               exit 1
             fi
           else
@@ -193,7 +177,7 @@ jobs:
           # The tag on GitHub, not the checkout snapshot, decides the release.
           REMOTE_TAG_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/commits/refs/tags/${TAG}" --jq .sha)"
           if [[ "$REMOTE_TAG_SHA" != "$SOURCE_SHA" ]]; then
-            echo "Tag ${TAG} points to ${REMOTE_TAG_SHA} on GitHub, not the selected source commit ${SOURCE_SHA}" >&2
+            echo "Tag ${TAG} points to ${REMOTE_TAG_SHA} on GitHub, not the source commit ${SOURCE_SHA}" >&2
             exit 1
           fi
 
@@ -240,7 +224,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          ref: ${{ needs.prepare.outputs.source_sha }}
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # v1
@@ -325,7 +308,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          ref: ${{ needs.prepare.outputs.source_sha }}
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # v1
@@ -398,7 +380,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          ref: ${{ needs.prepare.outputs.source_sha }}
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # v1
@@ -497,7 +478,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          ref: ${{ needs.prepare.outputs.source_sha }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
@@ -512,7 +492,7 @@ jobs:
           tags: release-dry-run:local
           build-args: |
             VERSION=v${{ needs.prepare.outputs.version }}
-            VCS_REF=${{ needs.prepare.outputs.source_sha }}
+            VCS_REF=${{ github.sha }}
             BINARY_NAME=${{ env.BINARY_NAME }}
             BINARY_PACKAGE=${{ env.BINARY_PACKAGE }}
             SBOM_MANIFEST_PATH=${{ env.SBOM_MANIFEST_PATH }}
