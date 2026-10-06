@@ -432,7 +432,9 @@ jobs:
           set -euo pipefail
           metadata="$(cargo metadata --locked --no-deps --format-version 1)"
           if [[ -n "${PUBLISH_PACKAGES}" ]]; then
-            read -r -a packages <<< "${PUBLISH_PACKAGES}"
+            # Split on any whitespace, newlines included; read -d '' returns
+            # nonzero at end of input.
+            read -r -d '' -a packages <<< "${PUBLISH_PACKAGES}" || true
           else
             root_package="$(jq -er --arg manifest "${PWD}/Cargo.toml" \
               '.packages[] | select(.manifest_path == $manifest) | .name' <<< "${metadata}")"
@@ -476,7 +478,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          read -r -a packages <<< "${PENDING_PACKAGES}"
+          read -r -d '' -a packages <<< "${PENDING_PACKAGES}" || true
           for package in "${packages[@]}"; do
             cargo publish -p "${package}" --all-features --locked
           done
