@@ -48,7 +48,9 @@ jobs:
   build:
     name: Build Docker Image
     runs-on: ${{ vars.RUST_TEMPLATE_RUNNER_UBUNTU || 'ubuntu-latest' }}
-    timeout-minutes: 60
+    # The linux/arm64 image compiles under QEMU emulation, roughly ten times
+    # slower than the native amd64 build (about 50 minutes instead of 5).
+    timeout-minutes: 120
     permissions:
       contents: read
       packages: write
@@ -56,6 +58,8 @@ jobs:
     outputs:
       digest: ${{ steps.build.outputs.digest }}
       image_name: ${{ steps.lowercase.outputs.image_name }}
+      platforms: ${{ steps.platforms.outputs.value }}
+      needs_qemu: ${{ steps.platforms.outputs.needs_qemu }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -72,16 +76,32 @@ jobs:
           TOOLCHAIN_VERSION="$(sed -n 's/^channel[[:space:]]*=[[:space:]]*"\(.*\)"/\1/p' rust-toolchain.toml | sed -n '1p')"
           echo "version=${TOOLCHAIN_VERSION}" >> "$GITHUB_OUTPUT"
 
+      # Pushed images are multi-platform, matching rust-cicd-template. Set the
+      # RUST_TEMPLATE_DOCKER_PLATFORMS variable to override the list. Pull
+      # requests always build linux/amd64 only (see "Build and export (PRs)").
+      # QEMU is needed when this run builds any platform other than the
+      # runner's own.
       - name: Select build platforms
         id: platforms
+        env:
+          PLATFORMS: ${{ vars.RUST_TEMPLATE_DOCKER_PLATFORMS || 'linux/amd64,linux/arm64' }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
-          PLATFORMS="${{ vars.RUST_TEMPLATE_DOCKER_PLATFORMS || 'linux/amd64' }}"
           echo "value=${PLATFORMS}" >> "$GITHUB_OUTPUT"
-          if [[ "${PLATFORMS}" == *"linux/arm64"* || "${PLATFORMS}" == *"linux/arm/v"* ]]; then
-            echo "needs_qemu=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "needs_qemu=false" >> "$GITHUB_OUTPUT"
+          targets="${PLATFORMS}"
+          if [[ "${EVENT_NAME}" == "pull_request" ]]; then
+            targets="linux/amd64"
           fi
+          native="$(docker version --format '{{ .Server.Os }}/{{ .Server.Arch }}')"
+          needs_qemu=false
+          IFS=',' read -ra target_platforms <<< "${targets}"
+          for platform in "${target_platforms[@]}"; do
+            if [[ "${platform//[[:space:]]/}" != "${native}" ]]; then
+              needs_qemu=true
+            fi
+          done
+          echo "Runner platform ${native}; building ${targets}; QEMU needed: ${needs_qemu}"
+          echo "needs_qemu=${needs_qemu}" >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU
         if: steps.platforms.outputs.needs_qemu == 'true'
@@ -214,6 +234,13 @@ jobs:
           name: docker-image
           path: /tmp
 
+      # Runs images built for a platform other than this runner's: the amd64
+      # pull request image on an arm64 runner, or the non-native platforms in
+      # "Smoke test every platform".
+      - name: Set up QEMU
+        if: needs.build.outputs.needs_qemu == 'true'
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+
       - name: Load image (PRs)
         if: github.event_name == 'pull_request'
         run: docker load -i /tmp/image.tar
@@ -269,6 +296,60 @@ jobs:
         with:
           sarif_file: trivy-results.sarif
         if: always() && hashFiles('trivy-results.sarif') != ''
+
+      # The steps above test and scan the runner's own platform. Check that the
+      # pushed index holds every requested platform, then run each other
+      # platform's CLI under QEMU, so a missing or broken image fails the run
+      # before it is signed.
+      - name: Set up Docker Buildx
+        if: github.event_name != 'pull_request'
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Smoke test every platform
+        if: github.event_name != 'pull_request'
+        env:
+          IMAGE: ${{ env.REGISTRY }}/${{ needs.build.outputs.image_name }}:${{ steps.sha.outputs.short }}
+          PLATFORMS: ${{ needs.build.outputs.platforms }}
+        run: |
+          set -euo pipefail
+          index="$(docker buildx imagetools inspect --raw "${IMAGE}")"
+          if jq -e 'has("manifests")' <<< "${index}" > /dev/null; then
+            pushed="$(jq -r '.manifests[].platform // empty
+              | [.os, .architecture, .variant] | map(select(. != null and . != "")) | join("/")' <<< "${index}")"
+          else
+            # A single-platform manifest, not an index: read its platform from
+            # the image config, so a multi-platform request fails below.
+            pushed="$(docker buildx imagetools inspect --format '{{ json .Image }}' "${IMAGE}" |
+              jq -r '[.os, .architecture, .variant] | map(select(. != null and . != "")) | join("/")')"
+          fi
+          echo "Pushed platforms: $(tr '\n' ' ' <<< "${pushed}")"
+          native="$(docker version --format '{{ .Server.Os }}/{{ .Server.Arch }}')"
+          IFS=',' read -ra platforms <<< "${PLATFORMS}"
+          for platform in "${platforms[@]}"; do
+            platform="${platform//[[:space:]]/}"
+            if ! grep -qxF "${platform}" <<< "${pushed}"; then
+              echo "::error::${IMAGE} has no ${platform} image"
+              exit 1
+            fi
+            if [[ "${platform}" == "${native}" ]]; then
+              continue
+            fi
+            echo "::group::Smoke test ${platform}"
+            # The runner's classic image store keeps one platform per image
+            # reference, so drop the copy pulled for another platform first.
+            docker image rm "${IMAGE}" > /dev/null 2>&1 || true
+            docker pull --quiet --platform "${platform}" "${IMAGE}"
+            docker run --rm --platform "${platform}" "${IMAGE}" --version
+            docker run --rm --platform "${platform}" "${IMAGE}" --help > /dev/null
+            container="$(docker create --platform "${platform}" "${IMAGE}")"
+            user="$(docker container inspect --format '{{ .Config.User }}' "${container}")"
+            docker rm "${container}" > /dev/null
+            if [[ "${user}" != "65532:65532" ]]; then
+              echo "::error::${platform} image runs as '${user}', expected the distroless nonroot user 65532:65532"
+              exit 1
+            fi
+            echo "::endgroup::"
+          done
 
   sign:
     name: Sign Container
