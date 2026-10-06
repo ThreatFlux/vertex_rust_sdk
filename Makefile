@@ -236,6 +236,7 @@ docker-build: ## Build Docker image
 	@docker build \
 		--build-arg BINARY_NAME=$(BINARY_NAME) \
 		--build-arg BINARY_PACKAGE=$(BINARY_PACKAGE) \
+		--build-arg CLI_NAME=$(BINARY_NAME) \
 		--build-arg SBOM_MANIFEST_PATH=$(SBOM_MANIFEST_PATH) \
 		-t $(DOCKER_REGISTRY)/$(DOCKER_IMAGE):$(DOCKER_TAG) .
 	@echo "$(GREEN)Docker image built: $(DOCKER_REGISTRY)/$(DOCKER_IMAGE):$(DOCKER_TAG)$(NC)"
