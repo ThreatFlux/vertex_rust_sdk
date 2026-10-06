@@ -37,6 +37,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - A current Vertex AI feature audit and staged implementation plan. The audit
   documents existing behavior and gaps; it does not add new provider features.
 
+### Security
+
+- The Docker runtime image applies pending Debian security updates when it is
+  built, instead of waiting for the next `debian:bookworm-slim` refresh.
+
 ## [0.9.0] - 2026-08-12
 
 ### Added
