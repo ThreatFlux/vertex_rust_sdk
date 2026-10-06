@@ -22,6 +22,11 @@ on:
         required: false
         type: boolean
         default: false
+      dry_run:
+        description: Build, package and verify without tagging, releasing, publishing or pushing images
+        required: false
+        type: boolean
+        default: false
 
 env:
   CARGO_TERM_COLOR: always
@@ -31,6 +36,8 @@ env:
   BINARY_PACKAGE: ${{ vars.RUST_TEMPLATE_BINARY_PACKAGE || 'threatflux-vertex-rust-sdk' }}
   SBOM_MANIFEST_PATH: ${{ vars.RUST_TEMPLATE_SBOM_MANIFEST_PATH || 'Cargo.toml' }}
   PUBLISH_PACKAGES: ${{ vars.RUST_TEMPLATE_PUBLISH_PACKAGES || '' }}
+  # Only workflow_dispatch can set this; tag pushes always perform a real release.
+  DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'true' || 'false' }}
 
 jobs:
   prepare:
@@ -85,6 +92,27 @@ jobs:
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
+      # The crate is published at its Cargo.toml version, so a release must
+      # match it. A dry run may rehearse a version that is not bumped yet, so
+      # it only warns.
+      - name: Check manifest version
+        id: manifest
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          MANIFEST_VERSION="$(python3 -c 'import tomllib; v = tomllib.load(open("Cargo.toml", "rb")).get("package", {}).get("version"); print(v if isinstance(v, str) else "")')"
+          echo "version=${MANIFEST_VERSION}" >> "$GITHUB_OUTPUT"
+          if [[ -n "$PUBLISH_PACKAGES" || -z "$MANIFEST_VERSION" ]]; then
+            echo "No single root package version to check (PUBLISH_PACKAGES set or no literal [package] version)"
+          elif [[ "$MANIFEST_VERSION" != "$VERSION" ]]; then
+            if [[ "$DRY_RUN" == "true" ]]; then
+              echo "::warning::Cargo.toml version ${MANIFEST_VERSION} does not match release version ${VERSION}; the dry run packages and verifies ${MANIFEST_VERSION}"
+            else
+              echo "Cargo.toml version ${MANIFEST_VERSION} does not match release version ${VERSION}" >&2
+              exit 1
+            fi
+          fi
+
       - name: Generate release notes
         env:
           VERSION: ${{ steps.version.outputs.version }}
@@ -104,7 +132,26 @@ jobs:
             fi
           fi
 
+      - name: Dry run summary
+        if: env.DRY_RUN == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          MANIFEST_VERSION: ${{ steps.manifest.outputs.version }}
+          SOURCE_SHA: ${{ steps.source_sha.outputs.source_sha }}
+        run: |
+          echo "Dry run: building ${SOURCE_SHA} as v${VERSION} without creating or checking the tag or release"
+          {
+            echo "### Release dry run: v${VERSION}"
+            echo
+            echo "Source commit: \`${SOURCE_SHA}\`. No tag, GitHub Release, release assets, crates.io package, or image is published."
+            echo
+            echo "Cargo.toml version packaged and verified: \`${MANIFEST_VERSION:-unknown}\`."
+            echo
+            cat release_notes.md
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Create or update GitHub Release
+        if: env.DRY_RUN != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.version.outputs.version }}
@@ -303,6 +350,7 @@ jobs:
   upload-assets:
     name: Upload Release Assets
     needs: [prepare, build, sbom]
+    if: github.event_name != 'workflow_dispatch' || !inputs.dry_run
     runs-on: ubuntu-latest
     steps:
       - name: Download all artifacts
@@ -328,7 +376,9 @@ jobs:
     name: Publish to crates.io
     needs: [prepare, build]
     runs-on: ubuntu-latest
-    if: "!contains(needs.prepare.outputs.version, '-')"
+    # Real publishes skip pre-release versions; a dry run always runs
+    # `cargo publish --dry-run`.
+    if: (github.event_name == 'workflow_dispatch' && inputs.dry_run) || !contains(needs.prepare.outputs.version, '-')
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -346,7 +396,20 @@ jobs:
           cargo package --locked --all-features
           cargo package --locked --list
 
+      - name: Verify crates.io package (dry run)
+        if: env.DRY_RUN == 'true'
+        run: |
+          set -euo pipefail
+          if [[ -n "${PUBLISH_PACKAGES}" ]]; then
+            for package in ${PUBLISH_PACKAGES}; do
+              cargo publish -p "${package}" --all-features --locked --dry-run
+            done
+          else
+            cargo publish --all-features --locked --dry-run
+          fi
+
       - name: Publish to crates.io
+        if: env.DRY_RUN != 'true'
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
@@ -362,3 +425,35 @@ jobs:
           else
             cargo publish --all-features --locked --token "${CARGO_REGISTRY_TOKEN}"
           fi
+
+  docker:
+    name: Build Docker Image (dry run)
+    needs: prepare
+    # Real releases build and push images through docker.yml, which
+    # auto-release dispatches for the new tag.
+    if: github.event_name == 'workflow_dispatch' && inputs.dry_run
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ needs.prepare.outputs.source_sha }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build runtime image without pushing
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64
+          push: false
+          build-args: |
+            VERSION=v${{ needs.prepare.outputs.version }}
+            VCS_REF=${{ needs.prepare.outputs.source_sha }}
+            BINARY_NAME=${{ env.BINARY_NAME }}
+            BINARY_PACKAGE=${{ env.BINARY_PACKAGE }}
+            SBOM_MANIFEST_PATH=${{ env.SBOM_MANIFEST_PATH }}
