@@ -79,20 +79,32 @@ jobs:
       # Pushed images are multi-platform, matching rust-cicd-template. Set the
       # RUST_TEMPLATE_DOCKER_PLATFORMS variable to override the list. Pull
       # requests always build linux/amd64 only (see "Build and export (PRs)").
+      # QEMU is needed when this run builds any platform other than the
+      # runner's own.
       - name: Select build platforms
         id: platforms
         env:
           PLATFORMS: ${{ vars.RUST_TEMPLATE_DOCKER_PLATFORMS || 'linux/amd64,linux/arm64' }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           echo "value=${PLATFORMS}" >> "$GITHUB_OUTPUT"
-          if [[ "${PLATFORMS}" == *"linux/arm64"* || "${PLATFORMS}" == *"linux/arm/v"* ]]; then
-            echo "needs_qemu=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "needs_qemu=false" >> "$GITHUB_OUTPUT"
+          targets="${PLATFORMS}"
+          if [[ "${EVENT_NAME}" == "pull_request" ]]; then
+            targets="linux/amd64"
           fi
+          native="$(docker version --format '{{ .Server.Os }}/{{ .Server.Arch }}')"
+          needs_qemu=false
+          IFS=',' read -ra target_platforms <<< "${targets}"
+          for platform in "${target_platforms[@]}"; do
+            if [[ "${platform//[[:space:]]/}" != "${native}" ]]; then
+              needs_qemu=true
+            fi
+          done
+          echo "Runner platform ${native}; building ${targets}; QEMU needed: ${needs_qemu}"
+          echo "needs_qemu=${needs_qemu}" >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU
-        if: github.event_name != 'pull_request' && steps.platforms.outputs.needs_qemu == 'true'
+        if: steps.platforms.outputs.needs_qemu == 'true'
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
 
       - name: Set up Docker Buildx
