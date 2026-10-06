@@ -61,7 +61,9 @@ LABEL org.opencontainers.image.title="${OCI_IMAGE_TITLE}" \
       org.opencontainers.image.vendor="${OCI_IMAGE_VENDOR}" \
       org.opencontainers.image.source="${OCI_IMAGE_SOURCE}"
 
-RUN apt-get update && apt-get install -y \
+# Apply pending Debian security updates: the slim base image is refreshed less
+# often than bookworm-security publishes fixes.
+RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     ca-certificates \
     libssl3 \
     tini \
