@@ -24,6 +24,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   commit. It creates a missing tag through the API and checks the tag on
   GitHub before publishing, so a concurrent run cannot publish under another
   commit's tag.
+- Manual `release.yml` dispatches accept `dry_run`, which builds and packages
+  every target, generates SBOMs, runs `cargo publish --dry-run`, and builds the
+  Docker image without creating a tag or GitHub Release, uploading assets,
+  publishing to crates.io, or pushing an image. A real release stops before
+  tagging when the requested version differs from the `Cargo.toml` version; a
+  dry run only warns. Manual `auto-release.yml` dispatches accept `dry_run` to
+  report the next release without committing, tagging, or releasing.
 
 ### Added
 
