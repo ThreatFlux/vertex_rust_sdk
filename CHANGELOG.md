@@ -36,6 +36,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   tagging when the requested version differs from the `Cargo.toml` version; a
   dry run only warns. Manual `auto-release.yml` dispatches accept `dry_run` to
   report the next release without committing, tagging, or releasing.
+- Releases publish to crates.io through trusted publishing: the publish job
+  runs in the `crates-io` environment and exchanges its GitHub OIDC identity
+  for a short-lived token instead of reading a registry token secret. A failed
+  publish fails the release, and a version already on crates.io is skipped.
+  The release workflow token is read-only except in the jobs that create the
+  tag and release or upload assets.
 
 ### Added
 
