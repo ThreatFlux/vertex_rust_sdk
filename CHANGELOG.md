@@ -43,11 +43,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   The release workflow token is read-only except in the jobs that create the
   tag and release or upload assets.
 - Automatic releases are cut with the organization's GitHub App token through
-  `github_actions` v0.7.7. The release tag the App pushes starts `release.yml`
-  and `docker.yml` through their tag triggers instead of an explicit dispatch,
-  so each runs once per release. The Docker workflow skips the App's
-  `chore: release` commit on `main`, because the tag's run builds, scans and
-  signs that commit.
+  `github_actions` v0.7.7. The App's release tag starts `release.yml` and
+  `docker.yml` through their tag triggers instead of an explicit dispatch, so
+  neither runs twice for one tag. Its release commit on `main` now also gets a
+  branch Docker run, so the `main` and `latest` images follow the release.
+  Docker push runs for the same commit wait for each other, so neither
+  overwrites the short-SHA image tag the other is scanning.
 
 ### Added
 

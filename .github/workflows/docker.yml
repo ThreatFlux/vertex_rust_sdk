@@ -22,6 +22,15 @@ on:
 permissions:
   contents: read
 
+# Auto-release's GitHub App pushes the release commit to main and then tags
+# it, so one commit gets a branch run (main, latest) and a tag run (semver
+# tags). Both push the short-SHA image tag that scan and sbom pull, so push
+# runs for the same commit wait for each other instead of overwriting that tag
+# mid-scan. Every other event gets its own group and is never queued.
+concurrency:
+  group: docker-${{ github.event_name == 'push' && github.sha || github.run_id }}
+  cancel-in-progress: false
+
 env:
   REGISTRY: ghcr.io
   DOCKER_BUILDKIT: 1
@@ -38,14 +47,6 @@ env:
 jobs:
   build:
     name: Build Docker Image
-    # Auto-release's GitHub App pushes the "chore: release vX.Y.Z" commit to
-    # main and then tags it. The tag's run builds, scans and signs that
-    # commit, so the branch run is skipped (scan, sign and sbom follow) to
-    # keep one image build per release instead of two racing on the
-    # short-SHA tag.
-    if: >-
-      !(github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event.sender.type == 'Bot'
-      && startsWith(github.event.head_commit.message, 'chore: release v'))
     runs-on: ${{ vars.RUST_TEMPLATE_RUNNER_UBUNTU || 'ubuntu-latest' }}
     timeout-minutes: 60
     permissions:
