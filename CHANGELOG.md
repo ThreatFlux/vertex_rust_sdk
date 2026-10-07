@@ -7,6 +7,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- `release.yml` writes the Windows archive's `.sha256` file with an LF line
+  ending, like the Unix archives' files. Every `vertex-windows-amd64.zip.sha256`
+  asset published so far (0.8.0 to 0.10.2) ends in CRLF, so `shasum -a 256 -c`
+  and macOS `sha256sum -c` report the archive as missing; check one with
+  `tr -d '\r' < vertex-windows-amd64.zip.sha256 | shasum -a 256 -c` (the hash
+  itself is correct).
+
 ## [0.10.2] - 2026-10-06
 
 Container images now ship for `linux/arm64` as well as `linux/amd64`. The SDK
