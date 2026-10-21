@@ -15,8 +15,8 @@
 # Dependabot refreshes the Rust builder; refresh the runtime digest with the
 # command above when it is updated.
 
-# rust 1.99.0 on Debian 13 (trixie); multi-arch index digest
-FROM rust:1.99.0-trixie@sha256:6ff07edce8775d0f64be7aba9197229407301bddf2054d62c27b541a6238a181 AS rust-base
+# rust 1.99.1 on Debian 13 (trixie); multi-arch index digest
+FROM rust:1.99.1-trixie@sha256:7e9eb23ac694dda816c76933ab63b2703e6becbf3b10da90970124656788d47b AS rust-base
 
 ARG VERSION=0.0.0
 ARG BUILD_DATE=unknown
@@ -90,7 +90,7 @@ RUN mkdir -p /home/builder/out/bin /home/builder/out/doc \
     cp /build/sbom.cdx.json /home/builder/out/doc/sbom.cdx.json
 
 # distroless cc on Debian 13, nonroot tag (uid/gid 65532); multi-arch index digest
-FROM gcr.io/distroless/cc-debian13:nonroot@sha256:e792ab3d241a468a4fd7519ddbbebe66b49b5f365771716ea688ad40b6c6f1c2 AS runtime
+FROM gcr.io/distroless/cc-debian13:nonroot@sha256:b7e81cb1af38d9345680e68bcf564d388f96304e25222030fc8c051faf8565b3 AS runtime
 
 ARG VERSION=0.0.0
 ARG BUILD_DATE=unknown

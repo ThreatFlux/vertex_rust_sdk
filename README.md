@@ -220,7 +220,7 @@ provides a longer guide to the interactive `vertex-chat` binary.
 
 ## Development
 
-The repository pins Rust 1.99.0 for development. Consumers require Rust 1.96.0
+The repository pins Rust 1.99.1 for development. Consumers require Rust 1.96.0
 or newer.
 
 ```bash

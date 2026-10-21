@@ -15,7 +15,7 @@ Contributions are welcome! This guide covers development setup, commit conventio
 ## Development Setup
 
 ```bash
-# Consumer MSRV is Rust 1.96.0; repository development uses Rust 1.99.0
+# Consumer MSRV is Rust 1.96.0; repository development uses Rust 1.99.1
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
 # Build and run full CI locally
