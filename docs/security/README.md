@@ -6,6 +6,8 @@ check. Scope: all **31 open alerts** exported from GitHub for main commit
 findings; none was a source-code or Cargo advisory. That initial review did not
 dismiss alerts. See the [implemented remediation and current dispositions](remediation.md)
 for the static runtime fix and ten subsequent evidence-backed dismissals.
+The [subsequent CA alert review](ca-alert-review.md) documents one additional
+metadata FP found by hosted scanning after the original 31-alert export.
 
 ## Decisions
 

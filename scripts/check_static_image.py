@@ -10,6 +10,18 @@ import tarfile
 import tempfile
 
 
+def check_ca_trust(bundle):
+    encoded = subprocess.check_output(
+        ["openssl", "crl2pkcs7", "-nocrl", "-certfile", "/dev/stdin"], input=bundle
+    )
+    subjects = subprocess.check_output(
+        ["openssl", "pkcs7", "-print_certs", "-noout"], input=encoded
+    ).decode().lower()
+    for distrusted in ("emsign ecc root ca - g3", "aaa certificate services"):
+        if distrusted in subjects:
+            raise ValueError(f"distrusted CA root returned to trust bundle: {distrusted}")
+
+
 def check_elf(name, data, architecture):
     if data[:6] != b"\x7fELF\x02\x01":
         raise ValueError(f"{name}: expected a little-endian ELF64 executable")
@@ -78,8 +90,10 @@ def main():
                 if seen != binaries:
                     raise ValueError(f"missing static executables: {binaries - seen}")
                 with filesystem.extractfile(files["etc/ssl/certs/ca-certificates.crt"]) as source:
-                    if b"-----BEGIN CERTIFICATE-----" not in source.read():
+                    bundle = source.read()
+                    if b"-----BEGIN CERTIFICATE-----" not in bundle:
                         raise ValueError("missing CA certificates")
+                    check_ca_trust(bundle)
                 with filesystem.extractfile(files["usr/share/doc/app/sbom.cdx.json"]) as source:
                     sbom = json.load(source)
                     if sbom.get("bomFormat") != "CycloneDX" or not sbom.get("components"):

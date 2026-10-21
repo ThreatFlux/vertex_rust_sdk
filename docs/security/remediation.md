@@ -49,7 +49,7 @@ toolchain stays in the builder rather than shipping in the runtime.
 
 ## Dismissed invalid findings
 
-The following ten alerts were dismissed through GitHub's code-scanning API as
+The ten original FPs below were dismissed through GitHub's code-scanning API as
 `false positive`, each with its own explanation and a link to the reviewed
 artifact evidence. These dismissals apply to the original inspected amd64/arm64
 images and must be reassessed if affected components or other targets appear.
@@ -67,6 +67,12 @@ main-branch TP alerts remain open until this PR is merged and the replacement
 main-branch image scan records their absence. No production image has been
 deployed by this change, and no merge is implied by local verification.
 
+An additional hosted-scan alert, **362 (DSA-6572-1)**, is a confirmed CA metadata
+FP: both runtime trust bundles exactly match the fixed Debian package. See the
+[CA alert review](ca-alert-review.md) for full hashes, the independent fixed
+reference and the root-subject regression check. This brings the scoped FP
+dismissal total to **11**; none of the 20 valid package findings was dismissed.
+
 ## Permanent regression checks
 
 `make docker-check` runs both checks below against the image from
@@ -79,7 +85,8 @@ each additional published architecture; release dry runs also execute them.
   generated test-only RSA key/CA. Exercise bearer-token authentication,
   service-account JWT creation and signature verification, token exchange,
   hostname lookup and API response parsing. Require trusted HTTPS success,
-  rejection of untrusted certificates and wrong hostnames, read-only/nonroot
+  rejection of untrusted certificates and wrong hostnames, explicit TLS 1.2
+  minimum in the fixture, read-only/nonroot
   execution, and tini forwarding SIGTERM while a request is in flight.
 
 The runtime explicitly sets `SSL_CERT_FILE` for the existing all-features native
@@ -98,16 +105,17 @@ See [arm64 native provenance](native-build-arm64.txt) and
 final images.
 
 Trivy **0.76.0** all-severity scans (`UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL`, OS and
-Cargo libraries) found **zero vulnerabilities on both architectures**. No CVE
-ignore file or advisory exemption was added. Database schema 2 was updated
-`2026-10-20T13:14:22.737606427Z`. The original scans reported all 31 CVE/package
-pairs with the same scanner/database; their disappearance matches the verified
-removal of the affected runtime implementations.
+Cargo libraries) with an explicitly refreshed schema-2 database updated
+`2026-10-21T01:19:53.032404989Z` report **one raw finding on each architecture**:
+the confirmed CA metadata FP [362](ca-alert-review.md). The original 31
+CVE/package pairs remain absent. Earlier cached-database scans showed zero
+raw findings before that advisory appeared; those are not the latest result.
+No CVE ignore file or advisory exemption was added.
 
-| Platform | Local Docker image ID | Scan findings |
+| Platform | Local Docker image ID | Fresh raw findings |
 | --- | --- | --- |
-| linux/arm64 | `sha256:711bc9451d19c3f68ff070afd70b48e1210e5e5e4b8e673bb8c2aba0edb98dd6` | 0 |
-| linux/amd64 | `sha256:084c712378d2c3f01c9b86ac7321f43c9e0d2a849808f2e07bcc4a1777067c6a` | 0 |
+| linux/arm64 | `sha256:711bc9451d19c3f68ff070afd70b48e1210e5e5e4b8e673bb8c2aba0edb98dd6` | 1 confirmed metadata FP |
+| linux/amd64 | `sha256:084c712378d2c3f01c9b86ac7321f43c9e0d2a849808f2e07bcc4a1777067c6a` | 1 confirmed metadata FP |
 
 The native ELF/link-map checks are important: a static binary with an old
 embedded CRT could show zero OS-package findings too. These images additionally
