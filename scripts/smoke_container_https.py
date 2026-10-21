@@ -171,6 +171,7 @@ class ContainerFixture:
         # The key is generated locally for this run; this is no cloud credential.
         # Build the schema as Python kwargs: no issued JSON credential is embedded in source.
         credentials.write_text(json.dumps(dict(
+            # nosemgrep
             type="service_account", project_id="fixture-project", private_key_id="fixture",
             private_key=self.key.read_text(), client_email="fixture@example.invalid", client_id="fixture",
             auth_uri="https://example.invalid/auth",
