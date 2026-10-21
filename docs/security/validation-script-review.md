@@ -34,3 +34,15 @@ Total: 4 valid maintainability findings fixed + 40 audited false positives = 44 
 - Real HTTPS fixture passed trusted token/API requests, RS256 service-account authentication, explicit self-signed-certificate and hostname-mismatch rejection, read-only/nonroot operation, and TERM forwarding.
 
 The same refactored scripts subsequently passed against `vertex-final:amd64` with `--platform linux/amd64`, including all TLS/authentication/signal cases. Fresh all-severity Trivy scans report zero findings on both final architectures; see [final artifacts](remediation.md#artifact-verification).
+
+## PR quality-gate follow-up
+
+The latest Codacy check (`119076351765`, commit `d33de516bfa603828c37aad8cb0086f32984ba8c`) reports 29 annotations, all in the previously audited false-positive groups above. All GitHub Actions workflows on that revision pass. The requester authorized ignoring the false positives.
+
+The scripts now carry line-local Bandit exceptions for the audited subprocess import/calls (`B404`/`B603`), Docker-reachable test listener (`B104`), and private container tmpfs (`B108`). Line-local `nosemgrep` comments cover only the flagged Docker argument construction/inspection calls and generated service-account fixture. Adjacent comments explain the trust boundary; no whole-file exclusions or repository-wide rule changes are used. Re-audit these exceptions if execution ever uses a shell, remote input selects executables or Docker options, or the fixture receives real credentials.
+
+Added docstrings to all 28 Python functions/methods to address CodeRabbit's reported 0% docstring coverage. AST comparison after removing function docstrings confirms that executable behavior is unchanged. Local Bandit 1.8.6 reports zero findings for the four annotated rules (`B104,B108,B404,B603`); this is a focused check, not a claim about all Bandit rules or a completed hosted Codacy rerun.
+
+Both scripts passed again against `vertex-final:arm64` and `vertex-final:amd64` with explicit platforms, including static runtime/provenance inspection and the real TLS/authentication/TERM fixture. Hosted analysis must confirm the source-level exceptions on the pushed revision.
+
+The full local gate also exposed a newly yanked locked dependency: `cargo audit --deny warnings` rejected Tokio 1.54.0. Updated Tokio to the compatible 1.54.1 patch. It is the only package version changed; Cargo also reselected seven Windows dependency edges to the already locked windows-sys 0.52.0. The full local gate passed on the resulting lockfile: 293 tests passed, 11 ignored, all 81 feature combinations, MSRV 1.96.0, hosted Clippy flags, formatting, rustdoc, benchmark compilation, audit and cargo-deny. The existing local image checks above cover the Python-only changes; hosted Docker CI rebuilds and validates the updated dependency.

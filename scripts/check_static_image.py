@@ -5,7 +5,8 @@ import argparse
 import json
 from pathlib import PurePosixPath
 import struct
-import subprocess
+# Docker/OpenSSL argv execution is intentional; see docs/security/validation-script-review.md.
+import subprocess  # nosec B404
 import tarfile
 import tempfile
 
@@ -14,10 +15,13 @@ BINARIES = {"usr/local/bin/app", "usr/bin/tini"}
 
 
 def check_ca_trust(bundle):
-    encoded = subprocess.check_output(
+    """Reject known distrusted roots from the shipped certificate bundle."""
+    # Fixed Docker/OpenSSL executable, list argv, no shell; audited fixture operation.
+    encoded = subprocess.check_output(  # nosec B603
         ["openssl", "crl2pkcs7", "-nocrl", "-certfile", "/dev/stdin"], input=bundle
     )
-    subjects = subprocess.check_output(
+    # Fixed Docker/OpenSSL executable, list argv, no shell; audited fixture operation.
+    subjects = subprocess.check_output(  # nosec B603
         ["openssl", "pkcs7", "-print_certs", "-noout"], input=encoded
     ).decode().lower()
     for distrusted in ("emsign ecc root ca - g3", "aaa certificate services"):
@@ -26,6 +30,7 @@ def check_ca_trust(bundle):
 
 
 def check_dynamic_section(name, data, header):
+    """Reject ELF dynamic sections that require shared libraries."""
     for entry in range(header[2], header[2] + header[5], 16):
         tag, _ = struct.unpack_from("<qQ", data, entry)
         if tag == 0:
@@ -35,6 +40,7 @@ def check_dynamic_section(name, data, header):
 
 
 def check_elf(name, data, architecture):
+    """Verify ELF architecture, static linkage and application PIE."""
     if data[:6] != b"\x7fELF\x02\x01":
         raise ValueError(f"{name}: expected a little-endian ELF64 executable")
     if name == "usr/local/bin/app" and struct.unpack_from("<H", data, 16)[0] != 3:
@@ -55,6 +61,7 @@ def check_elf(name, data, architecture):
 
 
 def check_configuration(info):
+    """Require the nonroot user, static init and explicit trust bundle."""
     config = info["Config"]
     if config["User"] != "65532:65532":
         raise ValueError("runtime must use the nonroot 65532:65532 account")
@@ -65,11 +72,13 @@ def check_configuration(info):
 
 
 def read_file(filesystem, files, name):
+    """Read a regular file from the exported container filesystem."""
     with filesystem.extractfile(files[name]) as source:
         return source.read()
 
 
 def check_runtime_files(filesystem, files, architecture):
+    """Require only the expected static, root-owned ELF executables."""
     seen = set()
     for name, member in files.items():
         if member.mode & 0o6000:
@@ -91,6 +100,7 @@ def check_runtime_files(filesystem, files, architecture):
 
 
 def check_ca_package(status):
+    """Require a refreshed installed CA supplier package record."""
     if "Package: ca-certificates\n" not in status or "Status: install ok installed\n" not in status:
         raise ValueError("missing installed CA supplier package record")
     version = next(
@@ -101,6 +111,7 @@ def check_ca_package(status):
 
 
 def check_support_files(filesystem, files, architecture):
+    """Validate CA trust, the application SBOM and native provenance."""
     bundle = read_file(filesystem, files, "etc/ssl/certs/ca-certificates.crt")
     if b"-----BEGIN CERTIFICATE-----" not in bundle:
         raise ValueError("missing CA certificates")
@@ -119,8 +130,10 @@ def check_support_files(filesystem, files, architecture):
 
 
 def check_filesystem(container, architecture):
+    """Export and inspect a container without running its application."""
     with tempfile.TemporaryFile() as archive:
-        subprocess.run(["docker", "export", container], stdout=archive, check=True)
+        # Fixed Docker/OpenSSL executable, list argv, no shell; audited fixture operation.
+        subprocess.run(["docker", "export", container], stdout=archive, check=True)  # nosec B603
         archive.seek(0)
         with tarfile.open(fileobj=archive) as filesystem:
             files = {str(PurePosixPath(m.name)): m for m in filesystem if m.isfile()}
@@ -129,6 +142,7 @@ def check_filesystem(container, architecture):
 
 
 def main():
+    """Create the selected image container, validate it and always remove it."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("image")
     parser.add_argument("--platform", choices=("linux/amd64", "linux/arm64"))
@@ -136,15 +150,22 @@ def main():
     create = ["docker", "create"]
     if args.platform:
         create += ["--platform", args.platform]
-    container = subprocess.check_output(create + ["--", args.image], text=True).strip()
+    # Fixed Docker/OpenSSL executable, list argv, no shell; audited fixture operation.
+    # nosemgrep
+    container = subprocess.check_output(create + ["--", args.image], text=True).strip()  # nosec B603
     try:
-        info = json.loads(subprocess.check_output(["docker", "inspect", container]))[0]
-        image = json.loads(subprocess.check_output(["docker", "image", "inspect", info["Image"]]))[0]
+        # Fixed Docker/OpenSSL executable, list argv, no shell; audited fixture operation.
+        # nosemgrep
+        info = json.loads(subprocess.check_output(["docker", "inspect", container]))[0]  # nosec B603
+        # Fixed Docker/OpenSSL executable, list argv, no shell; audited fixture operation.
+        # nosemgrep
+        image = json.loads(subprocess.check_output(["docker", "image", "inspect", info["Image"]]))[0]  # nosec B603
         check_configuration(info)
         check_filesystem(container, image["Architecture"])
         print(f"Static runtime verified: {args.image} ({image['Architecture']})")
     finally:
-        subprocess.run(["docker", "rm", container], stdout=subprocess.DEVNULL, check=True)
+        # Fixed Docker/OpenSSL executable, list argv, no shell; audited fixture operation.
+        subprocess.run(["docker", "rm", container], stdout=subprocess.DEVNULL, check=True)  # nosec B603
 
 
 if __name__ == "__main__":
