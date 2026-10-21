@@ -241,6 +241,11 @@ docker-build: ## Build Docker image
 		-t $(DOCKER_REGISTRY)/$(DOCKER_IMAGE):$(DOCKER_TAG) .
 	@echo "$(GREEN)Docker image built: $(DOCKER_REGISTRY)/$(DOCKER_IMAGE):$(DOCKER_TAG)$(NC)"
 
+.PHONY: docker-check
+docker-check: ## Check static image, authentication, hostname lookup and TLS
+	@python3 scripts/check_static_image.py $(DOCKER_REGISTRY)/$(DOCKER_IMAGE):$(DOCKER_TAG)
+	@python3 scripts/smoke_container_https.py $(DOCKER_REGISTRY)/$(DOCKER_IMAGE):$(DOCKER_TAG)
+
 .PHONY: docker-push
 docker-push: ## Push Docker image to registry
 	@echo "$(CYAN)Pushing Docker image...$(NC)"

@@ -1,5 +1,7 @@
 # Stable dependency rollup validation
 
+This records the original glibc-based artifacts. See the [subsequent remediation](remediation.md) for the static runtime fix and current alert dispositions.
+
 Validated locally on 2026-10-21. Base: main commit
 `3b990a75b9cef5fc43dffa45ad8851078177998f`. See the
 [review index](README.md) for verdicts and remediation plans.

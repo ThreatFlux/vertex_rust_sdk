@@ -1,5 +1,7 @@
 # Historical glibc code-scanning review
 
+This records the original glibc-based artifacts. See the [subsequent remediation](remediation.md) for the static runtime fix and current alert dispositions.
+
 Reviewed 2026-10-21. Scope: alerts **23–29**, Trivy OS-package findings for `libc6 2.41-12+deb13u4` at commit `3b990a75b9cef5fc43dffa45ad8851078177998f`. No alert was dismissed or suppressed during this review.
 
 ## Verdict and evidence boundary

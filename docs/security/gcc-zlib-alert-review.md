@@ -1,5 +1,7 @@
 # GCC and zlib code-scanning review
 
+This records the original glibc-based artifacts. See the [subsequent remediation](remediation.md) for the static runtime fix and current alert dispositions.
+
 Reviewed 2026-10-21. Scope: all ten open GCC-family/zlib alerts in the supplied GitHub API export. No alerts were dismissed. TP means the vulnerable component is present, independently of application reachability. FP means the alert's component/version/target mapping does not match the shipped vulnerable code; it does **not** mean merely that the CLI does not call it.
 
 ## Artifact and observed evidence
@@ -25,7 +27,7 @@ Both platforms contain `libstdc++6`, `libgomp1`, `libgcc-s1`, and `gcc-14-base` 
 | [348](https://github.com/ThreatFlux/vertex_rust_sdk/security/code-scanning/348) | CVE-2026-102010 | libgomp1 | FP, component mapping | PBDS C++ template implementation is not the OpenMP runtime. See G2. |
 | [339](https://github.com/ThreatFlux/vertex_rust_sdk/security/code-scanning/339) | CVE-2026-102010 | libgcc-s1 | FP, component mapping | PBDS template implementation is not the GCC support/unwind runtime. See G2. |
 | [335](https://github.com/ThreatFlux/vertex_rust_sdk/security/code-scanning/335) | CVE-2026-102010 | gcc-14-base | FP, component mapping | Base package contains no affected PBDS template implementation. See G2. |
-| [316](https://github.com/ThreatFlux/vertex_rust_sdk/security/code-scanning/316) | CVE-2026-85091 | zlib1g | Provisional FP, affected-version disagreement | Shipped 1.3.1 predates introduced nonblocking gz writer machinery; Debian still labels it vulnerable. Retain open pending vendor adjudication. See Z1. |
+| [316](https://github.com/ThreatFlux/vertex_rust_sdk/security/code-scanning/316) | CVE-2026-85091 | zlib1g | Undetermined, affected-version disagreement | Shipped 1.3.1 predates introduced nonblocking gz writer machinery; Debian still labels it vulnerable. Retain open pending vendor adjudication. See Z1. |
 | [98](https://github.com/ThreatFlux/vertex_rust_sdk/security/code-scanning/98) | CVE-2026-27171 | zlib1g | TP, application reachability unproven | Installed 1.3.1 contains arithmetic-shift CRC combine loop without negative-length guard on both platforms. Fix plan Z2. |
 
 ## G1: aligned-new integer overflow
@@ -44,9 +46,9 @@ Repository source is Rust; its directly linked runtime libraries show no C++ run
 
 [Debian's tracker](https://security-tracker.debian.org/tracker/CVE-2026-85091) currently labels trixie's 1.3.1 source vulnerable, while also documenting that support for nonblocking gz devices was introduced in [commit 81cc0beb](https://github.com/madler/zlib/commit/81cc0bebedd935daeb81b0b6e475d8786b51af3d) in 1.3.1.2. The [upstream fix](https://github.com/madler/zlib/commit/df84af25dc1942490e1d1c899a07619152a46148) fixes that later machinery. This is an explicit evidence conflict, not an accepted Debian adjudication.
 
-Downloaded the [official Debian orig source archive](https://deb.debian.org/debian/pool/main/z/zlib/zlib_1.3.dfsg+really1.3.1.orig.tar.gz), SHA256 `60dd315c07f616887caa029408308a018ace66e3d142726a97db164b3b8f69fb`; `gzwrite.c` has neither `gz_vacate` nor `state->again`. The corresponding [Debian packaging archive](https://deb.debian.org/debian/pool/main/z/zlib/zlib_1.3.dfsg+really1.3.1-1.debian.tar.xz) has an empty patch series. Shipped amd64 libz SHA256 is `85590dd58edf5445e18bc7193e5ebc01ac5841f1ae187e97705a662e90c6421e`; arm64 is `6fe00acadf8119ff245855e5dcc7f26c6c0ffaf4bfa2baa88feab58f23727d65`. Source and image version evidence support a provisional FP for the specific reported stale external buffer path. The public [upstream issue](https://github.com/madler/zlib/issues/1310) also records this range disagreement; the maintainer confirmed the later fix, without explicitly adjudicating Debian 1.3.1.
+Downloaded the [official Debian orig source archive](https://deb.debian.org/debian/pool/main/z/zlib/zlib_1.3.dfsg+really1.3.1.orig.tar.gz), SHA256 `60dd315c07f616887caa029408308a018ace66e3d142726a97db164b3b8f69fb`; `gzwrite.c` has neither `gz_vacate` nor `state->again`. The corresponding [Debian packaging archive](https://deb.debian.org/debian/pool/main/z/zlib/zlib_1.3.dfsg+really1.3.1-1.debian.tar.xz) has an empty patch series. Shipped amd64 libz SHA256 is `85590dd58edf5445e18bc7193e5ebc01ac5841f1ae187e97705a662e90c6421e`; arm64 is `6fe00acadf8119ff245855e5dcc7f26c6c0ffaf4bfa2baa88feab58f23727d65`. Source and image version evidence exclude the named later machinery, but do not establish that all older affected paths are absent. The public [upstream issue](https://github.com/madler/zlib/issues/1310) also records this range disagreement; the maintainer confirmed the later fix, without explicitly adjudicating Debian 1.3.1.
 
-Keep the alert open until vendor clarification or removal/upgrading of the package. If upgrading to 1.3.2 to fix Z2, require the nonblocking-writer fix as well (or use a later stable release containing it), because plain 1.3.2 introduces this affected path.
+A later [Debian maintainer comment](https://github.com/madler/zlib/issues/1310) reports PoC-related behavior before the nonblocking feature and requests upstream clarification. There is still no definitive vendor adjudication for Debian 1.3.1. The correct disposition is **undetermined**, not a proven FP. Keep the alert open until vendor clarification or removal/upgrading of the package. If upgrading to 1.3.2 to fix Z2, require the nonblocking-writer fix as well (or use a later stable release containing it), because plain 1.3.2 introduces this affected path.
 
 ## Z2: TP fix and validation plan for alert 98
 

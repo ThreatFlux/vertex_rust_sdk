@@ -508,3 +508,5 @@ jobs:
           set -euo pipefail
           docker run --rm release-dry-run:local --version
           docker run --rm release-dry-run:local --help > /dev/null
+          python3 scripts/check_static_image.py release-dry-run:local
+          python3 scripts/smoke_container_https.py release-dry-run:local

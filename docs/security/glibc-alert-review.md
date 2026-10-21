@@ -1,5 +1,7 @@
 # glibc code-scanning alert review
 
+This records the original glibc-based artifacts. See the [subsequent remediation](remediation.md) for the static runtime fix and current alert dispositions.
+
 Reviewed 2026-10-21. Scope: the 14 open `libc6` alerts with CVE years 2020 onward in the GitHub export supplied for this review. Historical glibc findings are reviewed separately. No alerts were dismissed.
 
 ## Evidence and classification limits

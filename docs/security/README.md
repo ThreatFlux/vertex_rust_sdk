@@ -3,25 +3,31 @@
 Reviewed 2026-10-21 by three independent review agents, with a combined coverage
 check. Scope: all **31 open alerts** exported from GitHub for main commit
 `3b990a75b9cef5fc43dffa45ad8851078177998f`. All were container OS-package
-findings; none was a source-code or Cargo advisory. No alerts were dismissed.
+findings; none was a source-code or Cargo advisory. That initial review did not
+dismiss alerts. See the [implemented remediation and current dispositions](remediation.md)
+for the static runtime fix and ten subsequent evidence-backed dismissals.
 
 ## Decisions
 
 | Review | Alerts | Result |
 | --- | --- | --- |
 | [Modern glibc](glibc-alert-review.md) | 14 | 12 TPs; 2 scoped FPs (Power8-only code and absent nscd component) |
-| [GCC and zlib](gcc-zlib-alert-review.md) | 10 | 8 GCC component/target FPs; 1 provisional zlib FP; 1 zlib TP |
+| [GCC and zlib](gcc-zlib-alert-review.md) | 10 | 8 GCC component/target FPs; 1 undetermined zlib finding; 1 zlib TP |
 | [Historical glibc](historical-alert-review.md) | 7 | 7 valid package detections, without demonstrated SDK exploitation |
 
-Totals: **20 TP package detections, 10 scoped FPs, 1 provisional FP**. A TP
+Totals: **20 TP package detections, 10 scoped FPs, 1 undetermined finding**. A TP
 package detection is not proof of an exploitable SDK call path. The reports
 record attack prerequisites, source/package evidence, platform limits, and a
-fix or mitigation plan with validation for every TP. The provisional zlib FP
+fix or mitigation plan with validation for every TP. The disputed zlib finding
 remains open because upstream source evidence conflicts with Debian's current
 affected-version classification. The architecture-specific glibc decision must
 be revisited if additional platforms are published.
 
-## Prioritized plan
+## Original prioritized plan
+
+The [static runtime remediation](remediation.md) implements component removal
+for every TP and the undetermined zlib finding. The original plan below explains
+the alternatives considered when stable Debian package fixes were unavailable.
 
 1. **Resolver alert 325:** verify deployment-controlled resolver search domains
    and `LOCALDOMAIN`, then adopt a supported stable runtime with the glibc fix
@@ -37,7 +43,8 @@ be revisited if additional platforms are published.
    glibc. Historical vendor-disputed issues require documented applicability
    or risk decisions rather than an invented fixed version.
 4. **FP handling:** preserve evidence for the exact image, package and platform;
-   obtain vendor clarification for the provisional finding before dismissal.
+   obtain vendor clarification for the undetermined finding before dismissal.
+   Ten confirmed FPs were subsequently dismissed with individual explanations.
    No blanket CVE ignores or advisory exemptions were added.
 5. **Artifact validation:** rebuild, export and scan each published architecture
    with current vulnerability data at every severity. Check the actual package

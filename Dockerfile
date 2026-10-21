@@ -1,11 +1,11 @@
 # ThreatFlux Rust Dockerfile
 # Multi-stage build for single-crate or workspace-based applications.
 #
-# Follows ThreatFlux/rust-cicd-template's canonical Dockerfile: a Debian 13
-# (trixie) Rust builder and a distroless Debian 13 runtime with no shell,
-# package manager or coreutils. The vertex CLI needs none of them: TLS uses
-# rustls (or OpenSSL vendored into the binary with --all-features), and
-# distroless/cc supplies glibc, libgcc, OpenSSL and the CA certificates.
+# Build a fully static musl CLI and tini, then ship only those executables,
+# CA certificates and nonroot account data in distroless/static. No glibc,
+# zlib, GCC shared runtime, shell or package manager is shipped. Keep all
+# Cargo features: native TLS uses statically vendored OpenSSL; rustls remains
+# available too. Runtime trust roots are explicit for both TLS backends.
 # Repo-specific values are build ARGs; .github/workflows/docker.yml supplies
 # them from repository variables.
 #
@@ -15,8 +15,8 @@
 # Dependabot refreshes the Rust builder; refresh the runtime digest with the
 # command above when it is updated.
 
-# rust 1.99.1 on Debian 13 (trixie); multi-arch index digest
-FROM rust:1.99.1-trixie@sha256:7e9eb23ac694dda816c76933ab63b2703e6becbf3b10da90970124656788d47b AS rust-base
+# rust 1.99.1 on Alpine 3.24 (musl); multi-arch index digest
+FROM rust:1.99.1-alpine3.24@sha256:557a94c82b485a14b569120e00867267108c734efe33f10cc31ca0cd5dd1eca9 AS rust-base
 
 ARG VERSION=0.0.0
 ARG BUILD_DATE=unknown
@@ -30,20 +30,21 @@ ARG OCI_IMAGE_DESCRIPTION="ThreatFlux Vertex AI Rust SDK command-line interface"
 ARG OCI_IMAGE_VENDOR=ThreatFlux
 ARG OCI_IMAGE_SOURCE=https://github.com/ThreatFlux/vertex_rust_sdk
 
-# tini is installed here so the runtime stage can copy it out: distroless ships
-# no init, and PID 1 must reap zombies and forward signals. Package revisions
-# follow the pinned base image's Debian 13 repositories.
-# hadolint ignore=DL3008
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# tini-static preserves signal forwarding and zombie reaping without a libc
+# dependency. Build tools stay in the builder; OpenSSL is vendored by Cargo.
+RUN apk add --no-cache \
+    binutils \
+    build-base \
     ca-certificates \
-    pkg-config \
-    libssl-dev \
-    tini \
-    && rm -rf /var/lib/apt/lists/*
+    cmake \
+    linux-headers \
+    perl \
+    pkgconf \
+    tini-static
 
 FROM rust-base AS builder
 
-RUN useradd -m -u 1000 builder
+RUN adduser -D -u 1000 builder
 USER builder
 WORKDIR /build
 
@@ -52,12 +53,26 @@ ENV PATH="/home/builder/.cargo/bin:${PATH}"
 
 COPY --chown=builder:builder . .
 
+# An explicit target keeps host proc macros separate from target static flags.
+# Disable Rust's older bundled musl CRT: link the maintained Alpine libc.a.
+# Keep only Rust's LLVM unwinder in a separate search path (never bundled libc).
+# Prove the selected archive from the link map and reject dynamic dependencies.
 RUN rustc --version --verbose && cargo --version && \
-    if [ -n "${BINARY_PACKAGE}" ]; then \
-      cargo build --locked --release -p "${BINARY_PACKAGE}" --bin "${BINARY_NAME}" --all-features; \
-    else \
-      cargo build --locked --release --bin "${BINARY_NAME}" --all-features || cargo build --locked --release --all-features; \
-    fi
+    build_target="$(rustc -vV | sed -n 's/^host: //p')" && \
+    mkdir -p /home/builder/native-unwind && \
+    cp "$(rustc --print sysroot)/lib/rustlib/${build_target}/lib/self-contained/libunwind.a" /home/builder/native-unwind/ && \
+    RUSTFLAGS="-C target-feature=+crt-static -C link-self-contained=no -C linker=cc -C relocation-model=pic -C link-arg=-static-pie -L native=/home/builder/native-unwind -C link-arg=-Wl,-Map=/home/builder/native-link.map" OPENSSL_STATIC=1 \
+      cargo build --locked --release --target "${build_target}" \
+        ${BINARY_PACKAGE:+-p "${BINARY_PACKAGE}"} --bin "${BINARY_NAME}" --all-features && \
+    musl_archive="$(grep -oE '/[^[:space:](]+/libc\.a' /home/builder/native-link.map | sort -u)" && \
+    test "$(readlink -f "${musl_archive}")" = /usr/lib/libc.a && \
+    readelf -h "target/${build_target}/release/${BINARY_NAME}" | grep -q 'Type:.*DYN' && \
+    for executable in "target/${build_target}/release/${BINARY_NAME}" /sbin/tini-static; do \
+      if readelf -l "${executable}" | grep -q INTERP || \
+         readelf -d "${executable}" | grep -q NEEDED; then \
+        echo "Dynamic dependency in ${executable}" >&2; exit 1; \
+      fi; \
+    done
 
 # cargo-cyclonedx writes the SBOM beside the manifest it was handed, which in a
 # workspace is not necessarily /build. The find normalizes the output location.
@@ -83,14 +98,19 @@ RUN mkdir -p /home/builder/out/bin /home/builder/out/doc \
              /home/builder/runtime-skel/data \
              /home/builder/runtime-skel/config \
              /home/builder/runtime-skel/output && \
-    cp "target/release/${BINARY_NAME}" /home/builder/out/bin/app && \
+    build_target="$(rustc -vV | sed -n 's/^host: //p')" && \
+    cp "target/${build_target}/release/${BINARY_NAME}" /home/builder/out/bin/app && \
     if [ "${CLI_NAME}" != "app" ]; then \
       ln -s app "/home/builder/out/bin/${CLI_NAME}"; \
     fi && \
-    cp /build/sbom.cdx.json /home/builder/out/doc/sbom.cdx.json
+    cp /build/sbom.cdx.json /home/builder/out/doc/sbom.cdx.json && \
+    { rustc -vV; apk list --installed musl musl-dev tini-static; \
+      sha256sum /usr/lib/libc.a /sbin/tini-static /home/builder/native-unwind/libunwind.a; \
+      grep -oE '/[^[:space:](]+/libc\.a' /home/builder/native-link.map | sort -u; \
+    } > /home/builder/out/doc/native-build.txt
 
-# distroless cc on Debian 13, nonroot tag (uid/gid 65532); multi-arch index digest
-FROM gcr.io/distroless/cc-debian13:nonroot@sha256:b7e81cb1af38d9345680e68bcf564d388f96304e25222030fc8c051faf8565b3 AS runtime
+# Static distroless: certificates/account data, no dynamic libc; multi-arch digest
+FROM gcr.io/distroless/static-debian13:nonroot@sha256:516757106de35205efb70b91ba03f6f1298424a0678c603255cf2852a7000087 AS runtime
 
 ARG VERSION=0.0.0
 ARG BUILD_DATE=unknown
@@ -112,7 +132,9 @@ LABEL org.opencontainers.image.title="${OCI_IMAGE_TITLE}" \
       org.opencontainers.image.licenses="${OCI_IMAGE_LICENSES}" \
       org.opencontainers.image.documentation="${OCI_IMAGE_DOCUMENTATION}"
 
-COPY --from=builder /usr/bin/tini /usr/bin/tini
+ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+
+COPY --from=builder /sbin/tini-static /usr/bin/tini
 
 # The binary and SBOM stay root-owned so the runtime user cannot modify them;
 # only the working directories belong to the nonroot user.

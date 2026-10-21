@@ -207,6 +207,22 @@ vertex-test --help
 Use runtime help as the authoritative command reference. [`CLI.md`](CLI.md)
 provides a longer guide to the interactive `vertex-chat` binary.
 
+## Container runtime
+
+Container images build the CLI with all Cargo features as a fully static musl
+executable and use a static tini init process. The pinned distroless/static
+runtime includes CA certificates and the nonroot account, without glibc, zlib,
+GCC shared libraries, a shell or a package manager. Native TLS retains vendored
+OpenSSL, and `SSL_CERT_FILE` points to the shipped CA bundle. Standard musl
+hostname resolution applies; glibc NSS plugins and gcloud are not provided.
+
+After `make docker-build`, run `make docker-check` to verify static linkage and
+exercise token/service-account authentication, trusted and rejected HTTPS,
+hostname resolution, read-only execution and signal forwarding. These checks
+also run in container CI for each published architecture. See the
+[security remediation record](docs/security/remediation.md) for findings and
+artifact validation.
+
 ## Documentation
 
 - [API reference](https://docs.rs/threatflux-vertex-rust-sdk)
