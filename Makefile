@@ -234,6 +234,7 @@ msrv: ## Check minimum supported Rust version
 docker-build: ## Build Docker image
 	@echo "$(CYAN)Building Docker image...$(NC)"
 	@docker build \
+		--no-cache-filter trust-store \
 		--build-arg BINARY_NAME=$(BINARY_NAME) \
 		--build-arg BINARY_PACKAGE=$(BINARY_PACKAGE) \
 		--build-arg CLI_NAME=$(BINARY_NAME) \
@@ -268,10 +269,14 @@ docs-check: template-check ## Validate README claims, quickstart sync, and local
 	@echo "$(GREEN)Documentation contract passed!$(NC)"
 
 .PHONY: ci
-ci: docs-check fmt-check lint test test-features docs security ## Full CI checks
+ci: container-validation-test docs-check fmt-check lint test test-features docs security ## Full CI checks
 
 .PHONY: ci-local
-ci-local: docs-check fmt-check lint-ci test test-features-full msrv docs bench-check security ## Full local gate matching hosted CI
+ci-local: container-validation-test docs-check fmt-check lint-ci test test-features-full msrv docs bench-check security ## Full local gate matching hosted CI
+
+.PHONY: container-validation-test
+container-validation-test: ## Test container platform, CA version and cleanup regressions
+	@python3 -m unittest discover -s scripts -p 'test_container_validation.py'
 
 .PHONY: ci-quick
 ci-quick: docs-check fmt-check lint check ## Quick CI checks

@@ -53,7 +53,7 @@ RUN apk add --no-cache \
     pkgconf \
     tini-static
 
-FROM rust-base AS builder
+FROM rust-base AS builder-source
 
 RUN adduser -D -u 1000 builder
 USER builder
@@ -62,14 +62,12 @@ WORKDIR /build
 ENV CARGO_HOME=/home/builder/.cargo
 ENV PATH="/home/builder/.cargo/bin:${PATH}"
 
-# Only build inputs invalidate native compilation; trust-store and validation
-# changes can refresh the runtime without rebuilding unchanged Rust code.
-COPY --chown=builder:builder Cargo.toml Cargo.lock rust-toolchain.toml README.md LICENSE ./
-COPY --chown=builder:builder .cargo/config.toml .cargo/config.toml
-COPY --chown=builder:builder src/ src/
-COPY --chown=builder:builder examples/ examples/
-COPY --chown=builder:builder tests/ tests/
-COPY --chown=builder:builder benches/ benches/
+# Preserve workspace members, build scripts and other manifest-relative inputs.
+# .dockerignore excludes local secrets and generated files. The independent
+# trust-store stage can refresh without invalidating native compilation.
+COPY --chown=builder:builder . .
+
+FROM builder-source AS builder
 
 # An explicit target keeps host proc macros separate from target static flags.
 # Disable Rust's older bundled musl CRT: link the maintained Alpine libc.a.

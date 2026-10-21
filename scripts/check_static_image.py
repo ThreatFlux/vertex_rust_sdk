@@ -9,6 +9,11 @@ import struct
 import subprocess  # nosec B404
 import tarfile
 import tempfile
+from container_validation import (
+    DOCKER_TIMEOUT, OPENSSL_TIMEOUT, cleanup_container, platform_argument,
+    CA_PACKAGE_FLOOR, compare_debian_versions,
+)
+
 
 
 BINARIES = {"usr/local/bin/app", "usr/bin/tini"}
@@ -19,11 +24,11 @@ def check_ca_trust(bundle):
     # Fixed Docker/OpenSSL executable, list argv, no shell; audited fixture operation.
     encoded = subprocess.check_output(  # nosec B603
         ["openssl", "crl2pkcs7", "-nocrl", "-certfile", "/dev/stdin"], input=bundle
-    )
+    , timeout=OPENSSL_TIMEOUT)
     # Fixed Docker/OpenSSL executable, list argv, no shell; audited fixture operation.
     subjects = subprocess.check_output(  # nosec B603
         ["openssl", "pkcs7", "-print_certs", "-noout"], input=encoded
-    ).decode().lower()
+    , timeout=OPENSSL_TIMEOUT).decode().lower()
     for distrusted in ("emsign ecc root ca - g3", "aaa certificate services"):
         if distrusted in subjects:
             raise ValueError(f"distrusted CA root returned to trust bundle: {distrusted}")
@@ -101,13 +106,12 @@ def check_runtime_files(filesystem, files, architecture):
 
 def check_ca_package(status):
     """Require a refreshed installed CA supplier package record."""
-    if "Package: ca-certificates\n" not in status or "Status: install ok installed\n" not in status:
+    fields = dict(line.split(": ", 1) for line in status.splitlines() if ": " in line and not line[0].isspace())
+    if fields.get("Package") != "ca-certificates" or fields.get("Status") != "install ok installed":
         raise ValueError("missing installed CA supplier package record")
-    version = next(
-        line.removeprefix("Version: ") for line in status.splitlines() if line.startswith("Version: ")
-    )
-    if version == "20250419":
-        raise ValueError("stale CA supplier package record")
+    version = fields.get("Version", "")
+    if compare_debian_versions(version, CA_PACKAGE_FLOOR) < 0:
+        raise ValueError(f"stale CA supplier package record: {version}; require >= {CA_PACKAGE_FLOOR}")
 
 
 def check_support_files(filesystem, files, architecture):
@@ -133,7 +137,7 @@ def check_filesystem(container, architecture):
     """Export and inspect a container without running its application."""
     with tempfile.TemporaryFile() as archive:
         # Fixed Docker/OpenSSL executable, list argv, no shell; audited fixture operation.
-        subprocess.run(["docker", "export", container], stdout=archive, check=True)  # nosec B603
+        subprocess.run(["docker", "export", container], stdout=archive, check=True, timeout=DOCKER_TIMEOUT)  # nosec B603
         archive.seek(0)
         with tarfile.open(fileobj=archive) as filesystem:
             files = {str(PurePosixPath(m.name)): m for m in filesystem if m.isfile()}
@@ -145,28 +149,28 @@ def main():
     """Create the selected image container, validate it and always remove it."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("image")
-    parser.add_argument("--platform", choices=("linux/amd64", "linux/arm64"))
+    parser.add_argument("--platform", type=platform_argument)
     args = parser.parse_args()
     create = ["docker", "create"]
     if args.platform:
         create += ["--platform", args.platform]
     # Fixed Docker/OpenSSL executable, list argv, no shell; audited fixture operation.
     # nosemgrep
-    container = subprocess.check_output(create + ["--", args.image], text=True).strip()  # nosec B603
-    try:
+    container = subprocess.check_output(create + ["--", args.image], text=True, timeout=DOCKER_TIMEOUT).strip()  # nosec B603
+    with cleanup_container(container):
         # Fixed Docker/OpenSSL executable, list argv, no shell; audited fixture operation.
         # nosemgrep
-        info = json.loads(subprocess.check_output(["docker", "inspect", container]))[0]  # nosec B603
+        info = json.loads(subprocess.check_output(["docker", "inspect", container], timeout=DOCKER_TIMEOUT))[0]  # nosec B603
         # Fixed Docker/OpenSSL executable, list argv, no shell; audited fixture operation.
         # nosemgrep
-        image = json.loads(subprocess.check_output(["docker", "image", "inspect", info["Image"]]))[0]  # nosec B603
+        image = json.loads(subprocess.check_output(["docker", "image", "inspect", info["Image"]], timeout=DOCKER_TIMEOUT))[0]  # nosec B603
         check_configuration(info)
         check_filesystem(container, image["Architecture"])
         print(f"Static runtime verified: {args.image} ({image['Architecture']})")
-    finally:
-        # Fixed Docker/OpenSSL executable, list argv, no shell; audited fixture operation.
-        subprocess.run(["docker", "rm", container], stdout=subprocess.DEVNULL, check=True)  # nosec B603
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except subprocess.TimeoutExpired as error:
+        raise SystemExit(f"Container validation command timed out after {error.timeout}s: {error.cmd}") from error

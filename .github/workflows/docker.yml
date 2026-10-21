@@ -14,6 +14,8 @@ on:
       - "Cargo.toml"
       - "Cargo.lock"
       - "rust-toolchain.toml"
+      - "scripts/container_validation.py"
+      - "scripts/test_container_validation.py"
       - "scripts/check_static_image.py"
       - "scripts/smoke_container_https.py"
       - "src/**"
@@ -86,18 +88,22 @@ jobs:
       # requests always build linux/amd64 only (see "Build and export (PRs)").
       # QEMU is needed when this run builds any platform other than the
       # runner's own.
+      - name: Test container validation helpers
+        run: python3 -m unittest discover -s scripts -p 'test_container_validation.py'
+
       - name: Select build platforms
         id: platforms
         env:
           PLATFORMS: ${{ vars.RUST_TEMPLATE_DOCKER_PLATFORMS || 'linux/amd64,linux/arm64' }}
           EVENT_NAME: ${{ github.event_name }}
         run: |
-          echo "value=${PLATFORMS}" >> "$GITHUB_OUTPUT"
-          targets="${PLATFORMS}"
+          platforms="$(python3 scripts/container_validation.py "${PLATFORMS}")"
+          echo "value=${platforms}" >> "$GITHUB_OUTPUT"
+          targets="${platforms}"
           if [[ "${EVENT_NAME}" == "pull_request" ]]; then
             targets="linux/amd64"
           fi
-          native="$(docker version --format '{{ .Server.Os }}/{{ .Server.Arch }}')"
+          native="$(python3 scripts/container_validation.py "$(docker version --format '{{ .Server.Os }}/{{ .Server.Arch }}')")"
           needs_qemu=false
           IFS=',' read -ra target_platforms <<< "${targets}"
           for platform in "${target_platforms[@]}"; do
@@ -176,6 +182,8 @@ jobs:
           tags: ${{ steps.lowercase.outputs.image_name }}:scan
           labels: ${{ steps.meta.outputs.labels }}
           outputs: type=docker,dest=/tmp/image.tar
+          # Refresh CA data on every runtime build; retain native compilation cache.
+          no-cache-filters: trust-store
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
@@ -201,6 +209,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # Refresh CA data on every runtime build; retain native compilation cache.
+          no-cache-filters: trust-store
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
@@ -341,8 +351,15 @@ jobs:
             pushed="$(docker buildx imagetools inspect --format '{{ json .Image }}' "${IMAGE}" |
               jq -r '[.os, .architecture, .variant] | map(select(. != null and . != "")) | join("/")')"
           fi
+          pushed="$(while IFS= read -r platform; do
+            # Build attestations carry an unknown/unknown platform, not a runtime.
+            if [[ -z "${platform}" || "${platform}" == "unknown/unknown" ]]; then
+              continue
+            fi
+            python3 scripts/container_validation.py "${platform}" || exit 1
+          done <<< "${pushed}")"
           echo "Pushed platforms: $(tr '\n' ' ' <<< "${pushed}")"
-          native="$(docker version --format '{{ .Server.Os }}/{{ .Server.Arch }}')"
+          native="$(python3 scripts/container_validation.py "$(docker version --format '{{ .Server.Os }}/{{ .Server.Arch }}')")"
           IFS=',' read -ra platforms <<< "${PLATFORMS}"
           for platform in "${platforms[@]}"; do
             platform="${platform//[[:space:]]/}"

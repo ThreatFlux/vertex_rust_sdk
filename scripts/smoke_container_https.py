@@ -12,6 +12,10 @@ import subprocess  # nosec B404
 import tempfile
 import threading
 from urllib.parse import parse_qs
+from container_validation import (
+    DOCKER_TIMEOUT, OPENSSL_TIMEOUT, cleanup_container, platform_argument,
+)
+
 
 
 def decode_base64(value):
@@ -58,7 +62,7 @@ class Handler(BaseHTTPRequestHandler):
         verified = subprocess.run([  # nosec B603
             "openssl", "dgst", "-sha256", "-verify", str(fixture.root / "public.pem"),
             "-signature", str(signature_file),
-        ], input=f"{header}.{claims}".encode(), capture_output=True)
+        ], input=f"{header}.{claims}".encode(), capture_output=True, timeout=OPENSSL_TIMEOUT)
         if verified.returncode:
             self.send_error(400)
             return
@@ -100,11 +104,11 @@ class ContainerFixture:
             "openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
             "-subj", "/CN=host.docker.internal", "-addext", "subjectAltName=DNS:host.docker.internal",
             "-addext", "basicConstraints=critical,CA:TRUE", "-keyout", str(self.key), "-out", str(self.certificate),
-        ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=OPENSSL_TIMEOUT)
         self.certificate.chmod(0o644)
         # Fixed Docker/OpenSSL executable, list argv, no shell; audited fixture operation.
         subprocess.run(["openssl", "pkey", "-in", str(self.key), "-pubout", "-out", str(self.root / "public.pem")],  # nosec B603
-                       check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                       check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=OPENSSL_TIMEOUT)
 
     def start_server(self):
         """Start the temporary Docker-reachable HTTPS fixture with TLS 1.2 minimum."""
@@ -193,22 +197,21 @@ class ContainerFixture:
         # Fixed Docker/OpenSSL executable, list argv, no shell; audited fixture operation.
         # nosemgrep
         container = subprocess.check_output(detached + ["-d"] + self.trust_options()  # nosec B603
-            + ["--", self.image, "tokens", "fixture-hold"], text=True).strip()
-        try:
-            if not self.holding.wait(15):
-                raise RuntimeError("signal fixture did not reach the HTTPS server")
-            # Fixed Docker/OpenSSL executable, list argv, no shell; audited fixture operation.
-            subprocess.run(["docker", "stop", "--time", "5", container], check=True,  # nosec B603
-                           stdout=subprocess.DEVNULL, timeout=20)
-            # Fixed Docker/OpenSSL executable, list argv, no shell; audited fixture operation.
-            exit_code = subprocess.check_output(["docker", "inspect", "--format",  # nosec B603
-                "{{.State.ExitCode}}", container], text=True).strip()
-            if exit_code not in {"0", "143"}:
-                raise RuntimeError(f"init did not forward TERM cleanly: exit {exit_code}")
-        finally:
-            self.release.set()
-            # Fixed Docker/OpenSSL executable, list argv, no shell; audited fixture operation.
-            subprocess.run(["docker", "rm", "-f", container], stdout=subprocess.DEVNULL, check=True)  # nosec B603
+            + ["--", self.image, "tokens", "fixture-hold"], text=True, timeout=DOCKER_TIMEOUT).strip()
+        with cleanup_container(container, force=True):
+            try:
+                if not self.holding.wait(15):
+                    raise RuntimeError("signal fixture did not reach the HTTPS server")
+                # Fixed Docker/OpenSSL executable, list argv, no shell; audited fixture operation.
+                subprocess.run(["docker", "stop", "--time", "5", container], check=True,  # nosec B603
+                               stdout=subprocess.DEVNULL, timeout=20)
+                # Fixed Docker/OpenSSL executable, list argv, no shell; audited fixture operation.
+                exit_code = subprocess.check_output(["docker", "inspect", "--format",  # nosec B603
+                    "{{.State.ExitCode}}", container], text=True, timeout=DOCKER_TIMEOUT).strip()
+                if exit_code not in {"0", "143"}:
+                    raise RuntimeError(f"init did not forward TERM cleanly: exit {exit_code}")
+            finally:
+                self.release.set()
 
     def check(self):
         """Run every TLS/authentication/signal check and shut down the server."""
@@ -232,11 +235,14 @@ def main():
     """Run the selected image fixture inside a securely allocated temporary directory."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("image")
-    parser.add_argument("--platform", choices=("linux/amd64", "linux/arm64"))
+    parser.add_argument("--platform", type=platform_argument)
     args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix="vertex-https-") as directory:
         ContainerFixture(Path(directory), args.image, args.platform).check()
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except subprocess.TimeoutExpired as error:
+        raise SystemExit(f"Container validation command timed out after {error.timeout}s: {error.cmd}") from error
