@@ -31,7 +31,7 @@ Evidence gathered from the existing published **amd64** image `ghcr.io/threatflu
 
 ## Release follow-up
 
-1. Rebuild from the refreshed pinned bases and lockfile, record the final image digest and libc package version, and scan **both** amd64 and arm64 with current Trivy databases and all severities. Do not rely on the current workflow's `CRITICAL,HIGH` filter to show closure of these LOW findings.
+1. Rebuild from the refreshed pinned bases and lockfile, record the final image digest and libc package version, and scan **both** amd64 and arm64 with current Trivy databases and all severities. Do not rely on a `CRITICAL,HIGH`-only scan to show closure of these LOW findings.
 2. Export each final runtime and inspect packages, entrypoint/user, absent diagnostic executables, dynamic imports and loaded native dependencies. The inspected old amd64 image supports this review but is not validation of the new build.
 3. Preserve this record alongside any future VEX/exception decision, including exact digest, affected package, attack prerequisites, owner and reassessment date. Package inventory matches should remain distinguishable from application exploitability decisions. No global `.trivyignore` is justified by this review.
 4. If removing glibc entirely is desired, evaluate a musl-linked minimal runtime as a separate compatibility change. Verify TLS, Google authentication, DNS/NSS behavior and both architectures. Removing a package changes applicability; switching distributions or libc is not proof that every analogous behavior disappears.

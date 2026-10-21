@@ -15,6 +15,17 @@
 # Dependabot refreshes the Rust builder; refresh the runtime digest with the
 # command above when it is updated.
 
+# Refresh trust data and its package provenance together. Distroless currently
+# has fixed CA data but stale package metadata; never globally dismiss the
+# advisory while older published images still trust the distrusted roots.
+FROM --platform=$BUILDPLATFORM debian:trixie-slim@sha256:62bd423aeee912639ca8ee681c2b762cb3e25137e0a92b20be455898a9f034ad AS trust-store
+
+# hadolint ignore=DL3008
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && \
+    dpkg --compare-versions "$(dpkg-query -W -f='${Version}' ca-certificates)" ge 20250419+deb13u1 && \
+    dpkg-query -s ca-certificates > /ca-certificates.status && \
+    rm -rf /var/lib/apt/lists/*
+
 # rust 1.99.1 on Alpine 3.24 (musl); multi-arch index digest
 FROM rust:1.99.1-alpine3.24@sha256:557a94c82b485a14b569120e00867267108c734efe33f10cc31ca0cd5dd1eca9 AS rust-base
 
@@ -51,7 +62,14 @@ WORKDIR /build
 ENV CARGO_HOME=/home/builder/.cargo
 ENV PATH="/home/builder/.cargo/bin:${PATH}"
 
-COPY --chown=builder:builder . .
+# Only build inputs invalidate native compilation; trust-store and validation
+# changes can refresh the runtime without rebuilding unchanged Rust code.
+COPY --chown=builder:builder Cargo.toml Cargo.lock rust-toolchain.toml README.md LICENSE ./
+COPY --chown=builder:builder .cargo/config.toml .cargo/config.toml
+COPY --chown=builder:builder src/ src/
+COPY --chown=builder:builder examples/ examples/
+COPY --chown=builder:builder tests/ tests/
+COPY --chown=builder:builder benches/ benches/
 
 # An explicit target keeps host proc macros separate from target static flags.
 # Disable Rust's older bundled musl CRT: link the maintained Alpine libc.a.
@@ -131,6 +149,11 @@ LABEL org.opencontainers.image.title="${OCI_IMAGE_TITLE}" \
       org.opencontainers.image.source="${OCI_IMAGE_SOURCE}" \
       org.opencontainers.image.licenses="${OCI_IMAGE_LICENSES}" \
       org.opencontainers.image.documentation="${OCI_IMAGE_DOCUMENTATION}"
+
+# These are the only CA trust files in the pinned static base. Copy the fixed
+# supplier data and exact installed-package record, not a relabeled version.
+COPY --from=trust-store /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY --from=trust-store /ca-certificates.status /var/lib/dpkg/status.d/ca-certificates
 
 ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 

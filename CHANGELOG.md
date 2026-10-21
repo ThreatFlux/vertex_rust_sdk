@@ -23,9 +23,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   and verify static linkage plus authentication/TLS/process behavior in CI on
   each published architecture. Dismissed the original ten evidence-backed false positives;
   retain the disputed zlib finding until replacement-image scans resolve it.
-- Verified an additional CA advisory as a metadata false positive against the
-  fixed supplier trust bundle. Check that distrusted roots remain absent, pin
-  Trivy to the locally validated version, and require TLS 1.2 in HTTPS fixtures.
+- Fixed the additional CA advisory affecting the original published image by
+  importing maintained Debian trust data and its package provenance. Reject
+  distrusted roots, pin Trivy, and require TLS 1.2 in HTTPS fixtures.
 - Reviewed all 31 open container code-scanning alerts with individual
   applicability decisions, supporting evidence, and remediation plans in
   `docs/security/`. Vulnerable system packages without stable distribution

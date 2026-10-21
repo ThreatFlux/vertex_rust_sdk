@@ -10,6 +10,9 @@ import tarfile
 import tempfile
 
 
+BINARIES = {"usr/local/bin/app", "usr/bin/tini"}
+
+
 def check_ca_trust(bundle):
     encoded = subprocess.check_output(
         ["openssl", "crl2pkcs7", "-nocrl", "-certfile", "/dev/stdin"], input=bundle
@@ -20,6 +23,15 @@ def check_ca_trust(bundle):
     for distrusted in ("emsign ecc root ca - g3", "aaa certificate services"):
         if distrusted in subjects:
             raise ValueError(f"distrusted CA root returned to trust bundle: {distrusted}")
+
+
+def check_dynamic_section(name, data, header):
+    for entry in range(header[2], header[2] + header[5], 16):
+        tag, _ = struct.unpack_from("<qQ", data, entry)
+        if tag == 0:
+            break
+        if tag == 1:
+            raise ValueError(f"{name}: has a shared-library dependency")
 
 
 def check_elf(name, data, architecture):
@@ -38,73 +50,98 @@ def check_elf(name, data, architecture):
         header = struct.unpack_from("<IIQQQQQQ", data, offset + index * size)
         if header[0] == 3:  # PT_INTERP: needs an external ELF loader.
             raise ValueError(f"{name}: has a dynamic interpreter")
-        if header[0] == 2:  # PT_DYNAMIC: static PIE can have this, but no NEEDED.
-            for entry in range(header[2], header[2] + header[5], 16):
-                tag, _ = struct.unpack_from("<qQ", data, entry)
-                if tag == 0:
-                    break
-                if tag == 1:
-                    raise ValueError(f"{name}: has a shared-library dependency")
+        if header[0] == 2:  # Static PIE can have PT_DYNAMIC, but no NEEDED.
+            check_dynamic_section(name, data, header)
+
+
+def check_configuration(info):
+    config = info["Config"]
+    if config["User"] != "65532:65532":
+        raise ValueError("runtime must use the nonroot 65532:65532 account")
+    if config["Entrypoint"] != ["/usr/bin/tini", "--", "/usr/local/bin/app"]:
+        raise ValueError("runtime must launch the CLI through its static init")
+    if "SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt" not in config["Env"]:
+        raise ValueError("runtime must configure the shipped CA trust bundle")
+
+
+def read_file(filesystem, files, name):
+    with filesystem.extractfile(files[name]) as source:
+        return source.read()
+
+
+def check_runtime_files(filesystem, files, architecture):
+    seen = set()
+    for name, member in files.items():
+        if member.mode & 0o6000:
+            raise ValueError(f"privileged executable mode shipped: {name}")
+        if ".so" in PurePosixPath(name).name:
+            raise ValueError(f"shared runtime library shipped: {name}")
+        with filesystem.extractfile(member) as source:
+            if source.read(4) != b"\x7fELF":
+                continue
+            if name not in BINARIES:
+                raise ValueError(f"unexpected runtime executable: {name}")
+            source.seek(0)
+            check_elf(name, source.read(), architecture)
+        if member.uid != 0 or member.mode & 0o022:
+            raise ValueError(f"{name}: executable must be root-owned and not writable by others")
+        seen.add(name)
+    if seen != BINARIES:
+        raise ValueError(f"missing static executables: {BINARIES - seen}")
+
+
+def check_ca_package(status):
+    if "Package: ca-certificates\n" not in status or "Status: install ok installed\n" not in status:
+        raise ValueError("missing installed CA supplier package record")
+    version = next(
+        line.removeprefix("Version: ") for line in status.splitlines() if line.startswith("Version: ")
+    )
+    if version == "20250419":
+        raise ValueError("stale CA supplier package record")
+
+
+def check_support_files(filesystem, files, architecture):
+    bundle = read_file(filesystem, files, "etc/ssl/certs/ca-certificates.crt")
+    if b"-----BEGIN CERTIFICATE-----" not in bundle:
+        raise ValueError("missing CA certificates")
+    check_ca_trust(bundle)
+    status = read_file(filesystem, files, "var/lib/dpkg/status.d/ca-certificates").decode()
+    check_ca_package(status)
+    sbom = json.loads(read_file(filesystem, files, "usr/share/doc/app/sbom.cdx.json"))
+    if sbom.get("bomFormat") != "CycloneDX" or not sbom.get("components"):
+        raise ValueError("missing application SBOM components")
+    provenance = read_file(filesystem, files, "usr/share/doc/app/native-build.txt").decode()
+    target = {"amd64": "x86_64", "arm64": "aarch64"}[architecture]
+    if (f"host: {target}-unknown-linux-musl" not in provenance
+        or "/usr/lib/libc.a" not in provenance
+        or "self-contained/libc.a" in provenance):
+        raise ValueError("missing system-musl linker provenance")
+
+
+def check_filesystem(container, architecture):
+    with tempfile.TemporaryFile() as archive:
+        subprocess.run(["docker", "export", container], stdout=archive, check=True)
+        archive.seek(0)
+        with tarfile.open(fileobj=archive) as filesystem:
+            files = {str(PurePosixPath(m.name)): m for m in filesystem if m.isfile()}
+            check_runtime_files(filesystem, files, architecture)
+            check_support_files(filesystem, files, architecture)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("image")
-    parser.add_argument("--platform")
+    parser.add_argument("--platform", choices=("linux/amd64", "linux/arm64"))
     args = parser.parse_args()
     create = ["docker", "create"]
     if args.platform:
         create += ["--platform", args.platform]
-    container = subprocess.check_output(create + [args.image], text=True).strip()
+    container = subprocess.check_output(create + ["--", args.image], text=True).strip()
     try:
         info = json.loads(subprocess.check_output(["docker", "inspect", container]))[0]
         image = json.loads(subprocess.check_output(["docker", "image", "inspect", info["Image"]]))[0]
-        if info["Config"]["User"] != "65532:65532":
-            raise ValueError("runtime must use the nonroot 65532:65532 account")
-        if info["Config"]["Entrypoint"] != ["/usr/bin/tini", "--", "/usr/local/bin/app"]:
-            raise ValueError("runtime must launch the CLI through its static init")
-        if "SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt" not in info["Config"]["Env"]:
-            raise ValueError("runtime must configure the shipped CA trust bundle")
-        binaries = {"usr/local/bin/app", "usr/bin/tini"}
-        seen = set()
-        with tempfile.TemporaryFile() as archive:
-            subprocess.run(["docker", "export", container], stdout=archive, check=True)
-            archive.seek(0)
-            with tarfile.open(fileobj=archive) as filesystem:
-                files = {str(PurePosixPath(m.name)): m for m in filesystem if m.isfile()}
-                for name, member in files.items():
-                    if member.mode & 0o6000:
-                        raise ValueError(f"privileged executable mode shipped: {name}")
-                    if ".so" in PurePosixPath(name).name:
-                        raise ValueError(f"shared runtime library shipped: {name}")
-                    with filesystem.extractfile(member) as source:
-                        magic = source.read(4)
-                        if magic == b"\x7fELF":
-                            if name not in binaries:
-                                raise ValueError(f"unexpected runtime executable: {name}")
-                            source.seek(0)
-                            check_elf(name, source.read(), image["Architecture"])
-                            if member.uid != 0 or member.mode & 0o022:
-                                raise ValueError(f"{name}: executable must be root-owned and not writable by others")
-                            seen.add(name)
-                if seen != binaries:
-                    raise ValueError(f"missing static executables: {binaries - seen}")
-                with filesystem.extractfile(files["etc/ssl/certs/ca-certificates.crt"]) as source:
-                    bundle = source.read()
-                    if b"-----BEGIN CERTIFICATE-----" not in bundle:
-                        raise ValueError("missing CA certificates")
-                    check_ca_trust(bundle)
-                with filesystem.extractfile(files["usr/share/doc/app/sbom.cdx.json"]) as source:
-                    sbom = json.load(source)
-                    if sbom.get("bomFormat") != "CycloneDX" or not sbom.get("components"):
-                        raise ValueError("missing application SBOM components")
-                with filesystem.extractfile(files["usr/share/doc/app/native-build.txt"]) as source:
-                    provenance = source.read().decode()
-                    target = {"amd64": "x86_64", "arm64": "aarch64"}[image["Architecture"]]
-                    if (f"host: {target}-unknown-linux-musl" not in provenance
-                        or "/usr/lib/libc.a" not in provenance
-                        or "self-contained/libc.a" in provenance):
-                        raise ValueError("missing system-musl linker provenance")
+        check_configuration(info)
+        check_filesystem(container, image["Architecture"])
         print(f"Static runtime verified: {args.image} ({image['Architecture']})")
     finally:
         subprocess.run(["docker", "rm", container], stdout=subprocess.DEVNULL, check=True)

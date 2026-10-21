@@ -7,7 +7,10 @@ findings; none was a source-code or Cargo advisory. That initial review did not
 dismiss alerts. See the [implemented remediation and current dispositions](remediation.md)
 for the static runtime fix and ten subsequent evidence-backed dismissals.
 The [subsequent CA alert review](ca-alert-review.md) documents one additional
-metadata FP found by hosted scanning after the original 31-alert export.
+valid trust-store finding on the original published image, found after the
+original 31-alert export and fixed by importing maintained CA data/provenance.
+The [validation script review](validation-script-review.md) also accounts for
+all subsequent Codacy annotations, including four maintainability fixes.
 
 ## Decisions
 

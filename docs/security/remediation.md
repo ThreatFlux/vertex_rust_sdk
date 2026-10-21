@@ -62,16 +62,18 @@ images and must be reassessed if affected components or other targets appear.
 | 337 | Power8 implementation is not in the published amd64/arm64 targets | [glibc review](glibc-alert-review.md) |
 | 317 | Affected nscd component is absent from both published runtime filesystems | [glibc review](glibc-alert-review.md) |
 
-No valid finding was dismissed as a false positive or accepted risk. GitHub's
-main-branch TP alerts remain open until this PR is merged and the replacement
+The ten listed dismissals remain evidence-backed. GitHub's
+valid main-branch alerts remain open until this PR is merged and the replacement
 main-branch image scan records their absence. No production image has been
 deployed by this change, and no merge is implied by local verification.
 
-An additional hosted-scan alert, **362 (DSA-6572-1)**, is a confirmed CA metadata
-FP: both runtime trust bundles exactly match the fixed Debian package. See the
-[CA alert review](ca-alert-review.md) for full hashes, the independent fixed
-reference and the root-subject regression check. This brings the scoped FP
-dismissal total to **11**; none of the 20 valid package findings was dismissed.
+An additional hosted-scan alert, **362 (DSA-6572-1)**, is valid against the
+original published image's distrusted CA root. The replacement runtime imports
+both the maintained Debian CA bundle and its exact package record. This fixes
+**21 valid package/trust findings in total**. The CA alert was reopened after
+inspection of the original image corrected an earlier refreshed-image-only
+FP assessment; it is not among the ten retained dismissals. See the
+[CA alert review](ca-alert-review.md) for scope, hashes and regression evidence.
 
 ## Permanent regression checks
 
@@ -105,17 +107,18 @@ See [arm64 native provenance](native-build-arm64.txt) and
 final images.
 
 Trivy **0.76.0** all-severity scans (`UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL`, OS and
-Cargo libraries) with an explicitly refreshed schema-2 database updated
-`2026-10-21T01:19:53.032404989Z` report **one raw finding on each architecture**:
-the confirmed CA metadata FP [362](ca-alert-review.md). The original 31
-CVE/package pairs remain absent. Earlier cached-database scans showed zero
-raw findings before that advisory appeared; those are not the latest result.
+Cargo libraries) use an explicitly refreshed schema-2 database updated
+`2026-10-21T01:19:53.032404989Z`. Final results are recorded below. Earlier
+images reported the CA advisory due to stale supplier package metadata; the
+final image copies the actual fixed package's trust data and provenance.
 No CVE ignore file or advisory exemption was added.
+
+Both final images report **zero raw findings** with that database.
 
 | Platform | Local Docker image ID | Fresh raw findings |
 | --- | --- | --- |
-| linux/arm64 | `sha256:711bc9451d19c3f68ff070afd70b48e1210e5e5e4b8e673bb8c2aba0edb98dd6` | 1 confirmed metadata FP |
-| linux/amd64 | `sha256:084c712378d2c3f01c9b86ac7321f43c9e0d2a849808f2e07bcc4a1777067c6a` | 1 confirmed metadata FP |
+| linux/arm64 | `sha256:3fa8d67f43049ee7415e86d16683a5a8d547b884f5931c2018d3aad62bf87594` | 0 |
+| linux/amd64 | `sha256:4a2ec9bfb2b2226d0e29bc1fdbc71b791d91ed070b3c47d24fe15cee1f216fd9` | 0 |
 
 The native ELF/link-map checks are important: a static binary with an old
 embedded CRT could show zero OS-package findings too. These images additionally
@@ -129,3 +132,6 @@ warnings-as-errors documentation, benchmark compilation, Cargo audit and
 cargo-deny. Final documentation, Python syntax, workflow and diff checks also
 passed. Image behavior tests used generated local credentials and certificates;
 no production requests were made. Local images have not been published.
+The [validation-script annotation review](validation-script-review.md) records
+four fixed complexity issues and evidence for the remaining audit heuristics;
+no Codacy dashboard dismissal is claimed.
