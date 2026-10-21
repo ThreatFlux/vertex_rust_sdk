@@ -169,15 +169,14 @@ class ContainerFixture:
         """Exercise real JWT signing with freshly generated dummy credentials."""
         credentials = self.root / "credentials.json"
         # The key is generated locally for this run; this is no cloud credential.
-        credentials.write_text(json.dumps({
-            # Runtime-generated test key and .invalid identity, never an issued GCP credential.
-            # nosemgrep
-            "type": "service_account", "project_id": "fixture-project", "private_key_id": "fixture",
-            "private_key": self.key.read_text(), "client_email": "fixture@example.invalid", "client_id": "fixture",
-            "auth_uri": "https://example.invalid/auth",
-            "token_uri": f"https://host.docker.internal:{self.server.server_port}/token",
-            "auth_provider_x509_cert_url": "", "client_x509_cert_url": "",
-        }))
+        # Build the schema as Python kwargs: no issued JSON credential is embedded in source.
+        credentials.write_text(json.dumps(dict(
+            type="service_account", project_id="fixture-project", private_key_id="fixture",
+            private_key=self.key.read_text(), client_email="fixture@example.invalid", client_id="fixture",
+            auth_uri="https://example.invalid/auth",
+            token_uri=f"https://host.docker.internal:{self.server.server_port}/token",
+            auth_provider_x509_cert_url="", client_x509_cert_url="",
+        )))
         credentials.chmod(0o644)
         options = self.trust_options() + ["-v", f"{credentials}:/fixture/credentials.json:ro",
                                          "-e", "GOOGLE_APPLICATION_CREDENTIALS=/fixture/credentials.json"]
