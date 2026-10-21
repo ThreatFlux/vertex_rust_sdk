@@ -1,0 +1,286 @@
+## amd64
+Package: libstdc++6
+Source: gcc-14
+Version: 14.2.0-19
+Architecture: amd64
+Package: libgomp1
+Source: gcc-14
+Version: 14.2.0-19
+Architecture: amd64
+Package: libgcc-s1
+Source: gcc-14
+Version: 14.2.0-19
+Architecture: amd64
+Package: gcc-14-base
+Source: gcc-14
+Version: 14.2.0-19
+Architecture: amd64
+Package: zlib1g
+Source: zlib (1:1.3.dfsg+really1.3.1-1)
+Version: 1:1.3.dfsg+really1.3.1-1+b1
+Architecture: amd64
+usr/local/bin/app DT_NEEDED: NEEDED       libgcc_s.so.1, NEEDED       libm.so.6, NEEDED       libc.so.6, NEEDED       ld-linux-x86-64.so.2
+usr/bin/tini DT_NEEDED: NEEDED       libc.so.6
+
+/tmp/vertex-review-amd64/usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.33:	file format elf64-x86-64
+
+Disassembly of section .text:
+
+00000000000b3c20 <_ZnwmSt11align_val_t>:
+   b3c20: f3 0f 1e fa                  	endbr64
+   b3c24: 41 54                        	pushq	%r12
+   b3c26: 48 8d 46 ff                  	leaq	-0x1(%rsi), %rax
+   b3c2a: 48 89 f2                     	movq	%rsi, %rdx
+   b3c2d: 55                           	pushq	%rbp
+   b3c2e: 48 31 c2                     	xorq	%rax, %rdx
+   b3c31: 53                           	pushq	%rbx
+   b3c32: 48 83 ec 10                  	subq	$0x10, %rsp
+   b3c36: 48 39 d0                     	cmpq	%rdx, %rax
+   b3c39: 0f 83 3c da fe ff            	jae	0xa167b <_ZSt10unexpectedv+0x92>
+   b3c3f: 48 85 ff                     	testq	%rdi, %rdi
+   b3c42: b8 01 00 00 00               	movl	$0x1, %eax
+   b3c47: 4c 8d 64 24 08               	leaq	0x8(%rsp), %r12
+   b3c4c: 48 0f 45 c7                  	cmovneq	%rdi, %rax
+   b3c50: 48 89 c5                     	movq	%rax, %rbp
+   b3c53: b8 08 00 00 00               	movl	$0x8, %eax
+   b3c58: 48 39 c6                     	cmpq	%rax, %rsi
+   b3c5b: 48 0f 43 c6                  	cmovaeq	%rsi, %rax
+   b3c5f: 48 89 c3                     	movq	%rax, %rbx
+   b3c62: eb 14                        	jmp	0xb3c78 <_ZnwmSt11align_val_t+0x58>
+   b3c64: 0f 1f 40 00                  	nopl	(%rax)
+   b3c68: e8 43 a2 fe ff               	callq	0x9deb0 <_ZSt15get_new_handlerv@plt>
+   b3c6d: 48 85 c0                     	testq	%rax, %rax
+   b3c70: 0f 84 33 da fe ff            	je	0xa16a9 <_ZSt10unexpectedv+0xc0>
+   b3c76: ff d0                        	callq	*%rax
+   b3c78: 48 89 ea                     	movq	%rbp, %rdx
+   b3c7b: 48 89 de                     	movq	%rbx, %rsi
+   b3c7e: 4c 89 e7                     	movq	%r12, %rdi
+   b3c81: e8 ca 99 fe ff               	callq	0x9d650 <posix_memalign@plt>
+   b3c86: 85 c0                        	testl	%eax, %eax
+   b3c88: 75 de                        	jne	0xb3c68 <_ZnwmSt11align_val_t+0x48>
+   b3c8a: 48 8b 44 24 08               	movq	0x8(%rsp), %rax
+   b3c8f: 48 85 c0                     	testq	%rax, %rax
+   b3c92: 74 d4                        	je	0xb3c68 <_ZnwmSt11align_val_t+0x48>
+   b3c94: 48 83 c4 10                  	addq	$0x10, %rsp
+   b3c98: 5b                           	popq	%rbx
+   b3c99: 5d                           	popq	%rbp
+   b3c9a: 41 5c                        	popq	%r12
+   b3c9c: c3                           	retq
+   b3c9d: 0f 1f 00                     	nopl	(%rax)
+
+libz SHA256 85590dd58edf5445e18bc7193e5ebc01ac5841f1ae187e97705a662e90c6421e
+
+/tmp/vertex-review-amd64/usr/lib/x86_64-linux-gnu/libz.so.1.3.1:	file format elf64-x86-64
+
+Disassembly of section .text:
+
+0000000000004820 <crc32_combine64>:
+    4820: f3 0f 1e fa                  	endbr64
+    4824: 53                           	pushq	%rbx
+    4825: 49 89 f2                     	movq	%rsi, %r10
+    4828: 48 85 d2                     	testq	%rdx, %rdx
+    482b: 0f 84 7f 00 00 00            	je	0x48b0 <crc32_combine64+0x90>
+    4831: b9 00 00 00 80               	movl	$0x80000000, %ecx       # imm = 0x80000000
+    4836: 41 bb 03 00 00 00            	movl	$0x3, %r11d
+    483c: 48 8d 1d bd 27 01 00         	leaq	0x127bd(%rip), %rbx     # 0x17000
+    4843: f6 c2 01                     	testb	$0x1, %dl
+    4846: 75 0c                        	jne	0x4854 <crc32_combine64+0x34>
+    4848: 48 d1 fa                     	sarq	%rdx
+    484b: 41 83 c3 01                  	addl	$0x1, %r11d
+    484f: f6 c2 01                     	testb	$0x1, %dl
+    4852: 74 f4                        	je	0x4848 <crc32_combine64+0x28>
+    4854: 44 89 d8                     	movl	%r11d, %eax
+    4857: 45 31 c9                     	xorl	%r9d, %r9d
+    485a: be 00 00 00 80               	movl	$0x80000000, %esi       # imm = 0x80000000
+    485f: 83 e0 1f                     	andl	$0x1f, %eax
+    4862: 44 8b 04 83                  	movl	(%rbx,%rax,4), %r8d
+    4866: eb 2a                        	jmp	0x4892 <crc32_combine64+0x72>
+    4868: 66 66 2e 0f 1f 84 00 00 00 00 00     	nopw	%cs:(%rax,%rax)
+    4873: 66 66 2e 0f 1f 84 00 00 00 00 00     	nopw	%cs:(%rax,%rax)
+    487e: 66 90                        	nop
+    4880: 89 c8                        	movl	%ecx, %eax
+    4882: d1 e9                        	shrl	%ecx
+    4884: 83 e0 01                     	andl	$0x1, %eax
+    4887: d1 ee                        	shrl	%esi
+    4889: f7 d8                        	negl	%eax
+    488b: 25 20 83 b8 ed               	andl	$0xedb88320, %eax       # imm = 0xEDB88320
+    4890: 31 c1                        	xorl	%eax, %ecx
+    4892: 41 85 f0                     	testl	%esi, %r8d
+    4895: 74 e9                        	je	0x4880 <crc32_combine64+0x60>
+    4897: 8d 46 ff                     	leal	-0x1(%rsi), %eax
+    489a: 41 31 c9                     	xorl	%ecx, %r9d
+    489d: 44 85 c0                     	testl	%r8d, %eax
+    48a0: 75 de                        	jne	0x4880 <crc32_combine64+0x60>
+    48a2: 48 d1 fa                     	sarq	%rdx
+    48a5: 74 19                        	je	0x48c0 <crc32_combine64+0xa0>
+    48a7: 41 83 c3 01                  	addl	$0x1, %r11d
+    48ab: 44 89 c9                     	movl	%r9d, %ecx
+    48ae: eb 93                        	jmp	0x4843 <crc32_combine64+0x23>
+    48b0: 41 b9 00 00 00 80            	movl	$0x80000000, %r9d       # imm = 0x80000000
+    48b6: 66 2e 0f 1f 84 00 00 00 00 00	nopw	%cs:(%rax,%rax)
+    48c0: 31 c0                        	xorl	%eax, %eax
+    48c2: b9 00 00 00 80               	movl	$0x80000000, %ecx       # imm = 0x80000000
+    48c7: eb 2a                        	jmp	0x48f3 <crc32_combine64+0xd3>
+    48c9: 66 66 2e 0f 1f 84 00 00 00 00 00     	nopw	%cs:(%rax,%rax)
+    48d4: 66 66 2e 0f 1f 84 00 00 00 00 00     	nopw	%cs:(%rax,%rax)
+    48df: 90                           	nop
+    48e0: 89 fa                        	movl	%edi, %edx
+    48e2: d1 ef                        	shrl	%edi
+    48e4: 83 e2 01                     	andl	$0x1, %edx
+    48e7: d1 e9                        	shrl	%ecx
+    48e9: f7 da                        	negl	%edx
+    48eb: 81 e2 20 83 b8 ed            	andl	$0xedb88320, %edx       # imm = 0xEDB88320
+    48f1: 31 d7                        	xorl	%edx, %edi
+    48f3: 44 85 c9                     	testl	%r9d, %ecx
+    48f6: 74 e8                        	je	0x48e0 <crc32_combine64+0xc0>
+    48f8: 8d 51 ff                     	leal	-0x1(%rcx), %edx
+    48fb: 31 f8                        	xorl	%edi, %eax
+    48fd: 44 85 ca                     	testl	%r9d, %edx
+    4900: 75 de                        	jne	0x48e0 <crc32_combine64+0xc0>
+    4902: 44 31 d0                     	xorl	%r10d, %eax
+    4905: 5b                           	popq	%rbx
+    4906: c3                           	retq
+    4907: 66 0f 1f 84 00 00 00 00 00   	nopw	(%rax,%rax)
+
+## arm64
+Package: libstdc++6
+Source: gcc-14
+Version: 14.2.0-19
+Architecture: arm64
+Package: libgomp1
+Source: gcc-14
+Version: 14.2.0-19
+Architecture: arm64
+Package: libgcc-s1
+Source: gcc-14
+Version: 14.2.0-19
+Architecture: arm64
+Package: gcc-14-base
+Source: gcc-14
+Version: 14.2.0-19
+Architecture: arm64
+Package: zlib1g
+Source: zlib (1:1.3.dfsg+really1.3.1-1)
+Version: 1:1.3.dfsg+really1.3.1-1+b1
+Architecture: arm64
+usr/local/bin/app DT_NEEDED: NEEDED       libgcc_s.so.1, NEEDED       libm.so.6, NEEDED       libc.so.6
+usr/bin/tini DT_NEEDED: NEEDED          libc.so.6
+
+/tmp/vertex-review-arm64/usr/lib/aarch64-linux-gnu/libstdc++.so.6.0.33:	file format elf64-littleaarch64
+
+Disassembly of section .text:
+
+00000000000aa1c0 <_ZnwmSt11align_val_t>:
+   aa1c0: d503233f     	paciasp
+   aa1c4: a9bc7bfd     	stp	x29, x30, [sp, #-0x40]!
+   aa1c8: d1000422     	sub	x2, x1, #0x1
+   aa1cc: ca020023     	eor	x3, x1, x2
+   aa1d0: 910003fd     	mov	x29, sp
+   aa1d4: a90153f3     	stp	x19, x20, [sp, #0x10]
+   aa1d8: f90013f5     	str	x21, [sp, #0x20]
+   aa1dc: eb02007f     	cmp	x3, x2
+   aa1e0: 540002e9     	b.ls	0xaa23c <_ZnwmSt11align_val_t+0x7c>
+   aa1e4: f100001f     	cmp	x0, #0x0
+   aa1e8: d2800102     	mov	x2, #0x8                // =8
+   aa1ec: 9a9f1414     	csinc	x20, x0, xzr, ne
+   aa1f0: eb02003f     	cmp	x1, x2
+   aa1f4: 9a822033     	csel	x19, x1, x2, hs
+   aa1f8: 9100e3f5     	add	x21, sp, #0x38
+   aa1fc: 14000004     	b	0xaa20c <_ZnwmSt11align_val_t+0x4c>
+   aa200: 97ffcc70     	bl	0x9d3c0 <_ZSt15get_new_handlerv@plt>
+   aa204: b40001c0     	cbz	x0, 0xaa23c <_ZnwmSt11align_val_t+0x7c>
+   aa208: d63f0000     	blr	x0
+   aa20c: aa1403e2     	mov	x2, x20
+   aa210: aa1303e1     	mov	x1, x19
+   aa214: aa1503e0     	mov	x0, x21
+   aa218: 97ffcbee     	bl	0x9d1d0 <posix_memalign@plt>
+   aa21c: 35ffff20     	cbnz	w0, 0xaa200 <_ZnwmSt11align_val_t+0x40>
+   aa220: f9401fe0     	ldr	x0, [sp, #0x38]
+   aa224: b4fffee0     	cbz	x0, 0xaa200 <_ZnwmSt11align_val_t+0x40>
+   aa228: f94013f5     	ldr	x21, [sp, #0x20]
+   aa22c: a94153f3     	ldp	x19, x20, [sp, #0x10]
+   aa230: a8c47bfd     	ldp	x29, x30, [sp], #0x40
+   aa234: d50323bf     	autiasp
+   aa238: d65f03c0     	ret
+   aa23c: d2800100     	mov	x0, #0x8                // =8
+   aa240: 97ffcf08     	bl	0x9de60 <__cxa_allocate_exception@plt>
+   aa244: b0000da3     	adrp	x3, 0x25f000
+   aa248: f9428463     	ldr	x3, [x3, #0x508]
+   aa24c: b0000da2     	adrp	x2, 0x25f000
+   aa250: f946f842     	ldr	x2, [x2, #0xdf0]
+   aa254: 91004063     	add	x3, x3, #0x10
+   aa258: 90000da1     	adrp	x1, 0x25e000 <_ZTVSt10moneypunctIwLb1EE+0x8>
+   aa25c: f947b821     	ldr	x1, [x1, #0xf70]
+   aa260: f9000003     	str	x3, [x0]
+   aa264: 97ffd0e3     	bl	0x9e5f0 <__cxa_throw@plt>
+   aa268: d503201f     	nop
+   aa26c: d503201f     	nop
+   aa270: d503201f     	nop
+   aa274: d503201f     	nop
+   aa278: d503201f     	nop
+   aa27c: d503201f     	nop
+
+libz SHA256 6fe00acadf8119ff245855e5dcc7f26c6c0ffaf4bfa2baa88feab58f23727d65
+
+/tmp/vertex-review-arm64/usr/lib/aarch64-linux-gnu/libz.so.1.3.1:	file format elf64-littleaarch64
+
+Disassembly of section .text:
+
+000000000000390c <crc32_combine64>:
+    390c: d503245f     	bti	c
+    3910: b4000402     	cbz	x2, 0x3990 <crc32_combine64+0x84>
+    3914: b000008b     	adrp	x11, 0x14000 <gzclose_r+0x2a0>
+    3918: 913d816b     	add	x11, x11, #0xf60
+    391c: 52906409     	mov	w9, #0x8320             // =33568
+    3920: 9110016b     	add	x11, x11, #0x400
+    3924: 52b00005     	mov	w5, #-0x80000000        // =-2147483648
+    3928: 5280006a     	mov	w10, #0x3               // =3
+    392c: 72bdb709     	movk	w9, #0xedb8, lsl #16
+    3930: 37000082     	tbnz	w2, #0x0, 0x3940 <crc32_combine64+0x34>
+    3934: 9341fc42     	asr	x2, x2, #1
+    3938: 1100054a     	add	w10, w10, #0x1
+    393c: 3607ffc2     	tbz	w2, #0x0, 0x3934 <crc32_combine64+0x28>
+    3940: 92401144     	and	x4, x10, #0x1f
+    3944: 52800006     	mov	w6, #0x0                // =0
+    3948: 52b00003     	mov	w3, #-0x80000000        // =-2147483648
+    394c: b8647967     	ldr	w7, [x11, x4, lsl #2]
+    3950: 14000003     	b	0x395c <crc32_combine64+0x50>
+    3954: 53017c63     	lsr	w3, w3, #1
+    3958: 4a450485     	eor	w5, w4, w5, lsr #1
+    395c: 934000a4     	sbfx	x4, x5, #0, #1
+    3960: 51000468     	sub	w8, w3, #0x1
+    3964: 0a090084     	and	w4, w4, w9
+    3968: 6a0300ff     	tst	w7, w3
+    396c: 54ffff40     	b.eq	0x3954 <crc32_combine64+0x48>
+    3970: 4a0500c6     	eor	w6, w6, w5
+    3974: 6a07011f     	tst	w8, w7
+    3978: 54fffee1     	b.ne	0x3954 <crc32_combine64+0x48>
+    397c: 9341fc42     	asr	x2, x2, #1
+    3980: b4000102     	cbz	x2, 0x39a0 <crc32_combine64+0x94>
+    3984: 1100054a     	add	w10, w10, #0x1
+    3988: 2a0603e5     	mov	w5, w6
+    398c: 17ffffe9     	b	0x3930 <crc32_combine64+0x24>
+    3990: 52b00006     	mov	w6, #-0x80000000        // =-2147483648
+    3994: d503201f     	nop
+    3998: d503201f     	nop
+    399c: d503201f     	nop
+    39a0: 52906407     	mov	w7, #0x8320             // =33568
+    39a4: 52800005     	mov	w5, #0x0                // =0
+    39a8: 52b00002     	mov	w2, #-0x80000000        // =-2147483648
+    39ac: 72bdb707     	movk	w7, #0xedb8, lsl #16
+    39b0: 14000003     	b	0x39bc <crc32_combine64+0xb0>
+    39b4: 53017c42     	lsr	w2, w2, #1
+    39b8: 4a400460     	eor	w0, w3, w0, lsr #1
+    39bc: 93400003     	sbfx	x3, x0, #0, #1
+    39c0: 51000444     	sub	w4, w2, #0x1
+    39c4: 0a070063     	and	w3, w3, w7
+    39c8: 6a06005f     	tst	w2, w6
+    39cc: 54ffff40     	b.eq	0x39b4 <crc32_combine64+0xa8>
+    39d0: 4a0000a5     	eor	w5, w5, w0
+    39d4: 6a06009f     	tst	w4, w6
+    39d8: 54fffee1     	b.ne	0x39b4 <crc32_combine64+0xa8>
+    39dc: 4a0100a0     	eor	w0, w5, w1
+    39e0: d65f03c0     	ret
+
+Debian zlib orig source SHA256 60dd315c07f616887caa029408308a018ace66e3d142726a97db164b3b8f69fb
+Debian patch series: ''

@@ -7,6 +7,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- Consolidated dependency updates onto stable Rust 1.99.1, refreshed all
+  resolvable Cargo dependencies, GitHub Actions pins, and both container base
+  digests. The consumer MSRV remains Rust 1.96.0.
+- Container SARIF reports include all severities so lower-severity findings
+  remain visible during security review.
+
+### Security
+
+- Removed all reviewed vulnerable OS runtime components from container images:
+  compile the CLI and tini statically against musl and use pinned
+  distroless/static. Preserve all Cargo features, configure CA trust explicitly,
+  and verify static linkage plus authentication/TLS/process behavior in CI on
+  each published architecture. Dismissed the original ten evidence-backed false positives;
+  retain the disputed zlib finding until replacement-image scans resolve it.
+- Fixed the additional CA advisory affecting the original published image by
+  importing maintained Debian trust data and its package provenance. Reject
+  distrusted roots, pin Trivy, and require TLS 1.2 in HTTPS fixtures.
+- Reviewed all 31 open container code-scanning alerts with individual
+  applicability decisions, supporting evidence, and remediation plans in
+  `docs/security/`. Vulnerable system packages without stable distribution
+  fixes remain documented; the dependency refresh does not claim to fix them.
+
 ### Fixed
 
 - `release.yml` writes the Windows archive's `.sha256` file with an LF line

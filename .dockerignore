@@ -6,3 +6,8 @@ sbom
 lcov.info
 *.profraw
 *.profdata
+.env
+.env.*
+**/.env
+**/.env.*
+**/__pycache__

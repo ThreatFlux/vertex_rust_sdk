@@ -3,7 +3,7 @@
 
 CARGO ?= cargo
 RUST_MSRV ?= 1.96.0
-RUST_TOOLCHAIN ?= 1.99.0
+RUST_TOOLCHAIN ?= 1.99.1
 CARGO_AUDIT_VERSION := 0.22.2
 CARGO_DENY_VERSION := 0.20.2
 CARGO_HACK_VERSION := 0.6.45
@@ -234,12 +234,18 @@ msrv: ## Check minimum supported Rust version
 docker-build: ## Build Docker image
 	@echo "$(CYAN)Building Docker image...$(NC)"
 	@docker build \
+		--no-cache-filter trust-store \
 		--build-arg BINARY_NAME=$(BINARY_NAME) \
 		--build-arg BINARY_PACKAGE=$(BINARY_PACKAGE) \
 		--build-arg CLI_NAME=$(BINARY_NAME) \
 		--build-arg SBOM_MANIFEST_PATH=$(SBOM_MANIFEST_PATH) \
 		-t $(DOCKER_REGISTRY)/$(DOCKER_IMAGE):$(DOCKER_TAG) .
 	@echo "$(GREEN)Docker image built: $(DOCKER_REGISTRY)/$(DOCKER_IMAGE):$(DOCKER_TAG)$(NC)"
+
+.PHONY: docker-check
+docker-check: ## Check static image, authentication, hostname lookup and TLS
+	@python3 scripts/check_static_image.py $(DOCKER_REGISTRY)/$(DOCKER_IMAGE):$(DOCKER_TAG)
+	@python3 scripts/smoke_container_https.py $(DOCKER_REGISTRY)/$(DOCKER_IMAGE):$(DOCKER_TAG)
 
 .PHONY: docker-push
 docker-push: ## Push Docker image to registry
@@ -263,10 +269,14 @@ docs-check: template-check ## Validate README claims, quickstart sync, and local
 	@echo "$(GREEN)Documentation contract passed!$(NC)"
 
 .PHONY: ci
-ci: docs-check fmt-check lint test test-features docs security ## Full CI checks
+ci: container-validation-test docs-check fmt-check lint test test-features docs security ## Full CI checks
 
 .PHONY: ci-local
-ci-local: docs-check fmt-check lint-ci test test-features-full msrv docs bench-check security ## Full local gate matching hosted CI
+ci-local: container-validation-test docs-check fmt-check lint-ci test test-features-full msrv docs bench-check security ## Full local gate matching hosted CI
+
+.PHONY: container-validation-test
+container-validation-test: ## Test container platform, CA version and cleanup regressions
+	@python3 -m unittest discover -s scripts -p 'test_container_validation.py'
 
 .PHONY: ci-quick
 ci-quick: docs-check fmt-check lint check ## Quick CI checks
