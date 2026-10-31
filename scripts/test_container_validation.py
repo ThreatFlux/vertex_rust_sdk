@@ -40,6 +40,34 @@ class PlatformTests(unittest.TestCase):
         self.assertEqual(requested, manifest)
 
 
+class StaticImageArchitectureTests(unittest.TestCase):
+    """Keep cross-platform validation working when Docker omits metadata."""
+
+    def test_explicit_platform_recovers_blank_image_architecture(self):
+        self.assertEqual(check_static_image.image_architecture({"Architecture": ""}, "linux/arm64"), "arm64")
+
+    def test_main_validates_arm64_when_image_metadata_is_blank(self):
+        outputs = ["fixture-container", json.dumps([{"Image": "sha256:fixture"}]),
+                   json.dumps([{"Architecture": ""}])]
+        with (
+            patch("sys.argv", ["check_static_image.py", "--platform", "linux/arm64", "fixture-image"]),
+            patch.object(validation.subprocess, "check_output", side_effect=outputs),
+            patch.object(validation.subprocess, "run"),
+            patch.object(check_static_image, "check_configuration"),
+            patch.object(check_static_image, "check_filesystem") as filesystem,
+        ):
+            check_static_image.main()
+        filesystem.assert_called_once_with("fixture-container", "arm64")
+
+    def test_reported_architecture_must_match_requested_platform(self):
+        with self.assertRaisesRegex(ValueError, "does not match"):
+            check_static_image.image_architecture({"Architecture": "amd64"}, "linux/arm64")
+
+    def test_blank_architecture_without_platform_fails(self):
+        with self.assertRaisesRegex(ValueError, "unsupported image architecture"):
+            check_static_image.image_architecture({"Architecture": ""}, None)
+
+
 class PackageVersionTests(unittest.TestCase):
     """Exercise the CA floor and Debian epoch, prerelease and revision ordering."""
 
