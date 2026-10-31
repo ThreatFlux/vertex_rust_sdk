@@ -40,6 +40,21 @@ class PlatformTests(unittest.TestCase):
         self.assertEqual(requested, manifest)
 
 
+class StaticImageArchitectureTests(unittest.TestCase):
+    """Keep cross-platform validation working when Docker omits metadata."""
+
+    def test_explicit_platform_recovers_blank_image_architecture(self):
+        self.assertEqual(check_static_image.image_architecture({"Architecture": ""}, "linux/arm64"), "arm64")
+
+    def test_reported_architecture_must_match_requested_platform(self):
+        with self.assertRaisesRegex(ValueError, "does not match"):
+            check_static_image.image_architecture({"Architecture": "amd64"}, "linux/arm64")
+
+    def test_blank_architecture_without_platform_fails(self):
+        with self.assertRaisesRegex(ValueError, "unsupported image architecture"):
+            check_static_image.image_architecture({"Architecture": ""}, None)
+
+
 class PackageVersionTests(unittest.TestCase):
     """Exercise the CA floor and Debian epoch, prerelease and revision ordering."""
 

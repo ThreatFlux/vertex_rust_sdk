@@ -145,6 +145,18 @@ def check_filesystem(container, architecture):
             check_support_files(filesystem, files, architecture)
 
 
+def image_architecture(image, platform):
+    """Use the requested platform when Docker omits image architecture metadata."""
+    reported = image.get("Architecture")
+    requested = platform.split("/")[1] if platform else None
+    if reported and requested and reported != requested:
+        raise ValueError(f"image architecture {reported} does not match requested platform {platform}")
+    architecture = reported or requested
+    if architecture not in ("amd64", "arm64"):
+        raise ValueError(f"unsupported image architecture: {architecture!r}")
+    return architecture
+
+
 def main():
     """Create the selected image container, validate it and always remove it."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -164,9 +176,10 @@ def main():
         # Fixed Docker/OpenSSL executable, list argv, no shell; audited fixture operation.
         # nosemgrep
         image = json.loads(subprocess.check_output(["docker", "image", "inspect", info["Image"]], timeout=DOCKER_TIMEOUT))[0]  # nosec B603
+        architecture = image_architecture(image, args.platform)
         check_configuration(info)
-        check_filesystem(container, image["Architecture"])
-        print(f"Static runtime verified: {args.image} ({image['Architecture']})")
+        check_filesystem(container, architecture)
+        print(f"Static runtime verified: {args.image} ({architecture})")
 
 
 if __name__ == "__main__":
