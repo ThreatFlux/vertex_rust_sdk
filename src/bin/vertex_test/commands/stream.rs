@@ -2,7 +2,7 @@ use crate::vertex_test::attachments::{
     aggregate_stream_text, build_claude_user_message, load_inline_attachments, merge_claude_usage,
     InlineAttachment, InputFileArg,
 };
-use crate::vertex_test::config::{claude_model_supports_web_search, resolve_model_alias};
+use crate::vertex_test::config::resolve_model_alias;
 use crate::vertex_test::output::{display_citations, display_non_text_block, print_stream_delta};
 use crate::vertex_test::progress;
 use anyhow::{anyhow, Result};
@@ -17,7 +17,12 @@ use threatflux_vertex_rust_sdk::models::GenerateContentRequest;
 use threatflux_vertex_rust_sdk::types::{Content, Part};
 use threatflux_vertex_rust_sdk::ModelDescriptor;
 
-pub async fn run(prompt: String, model: String, input_files: Vec<InputFileArg>) -> Result<()> {
+pub async fn run(
+    prompt: String,
+    model: String,
+    input_files: Vec<InputFileArg>,
+    web_search: bool,
+) -> Result<()> {
     println!("{}", "Testing Streaming Generation...".bold().cyan());
     println!("Model: {}", model.yellow());
     println!("Prompt: {}", prompt.italic());
@@ -47,8 +52,10 @@ pub async fn run(prompt: String, model: String, input_files: Vec<InputFileArg>) 
     };
 
     if descriptor.publisher() == "anthropic" {
-        run_claude_stream(spinner, &client, &resolved_model, &descriptor, &prompt, &attachments)
+        run_claude_stream(spinner, &client, &resolved_model, web_search, &prompt, &attachments)
             .await
+    } else if web_search {
+        Err(anyhow!("--web-search requires a Claude model"))
     } else {
         run_gemini_stream(spinner, &client, &resolved_model, &prompt, &attachments).await
     }
@@ -58,18 +65,18 @@ async fn run_claude_stream(
     spinner: indicatif::ProgressBar,
     client: &VertexClient,
     model: &str,
-    descriptor: &ModelDescriptor,
+    web_search: bool,
     prompt: &str,
     attachments: &[InlineAttachment],
 ) -> Result<()> {
     spinner.set_message("Requesting Claude stream...");
 
-    let mut request = MessageRequest::new().max_tokens(500).temperature(0.7);
+    let mut request = MessageRequest::new().max_tokens(4096);
     let message = build_claude_user_message(prompt, attachments);
     request = request.add_message(message);
 
-    if claude_model_supports_web_search(descriptor.model()) {
-        request = request.add_web_search_tool(WebSearchTool::new().with_max_uses(Some(5)));
+    if web_search {
+        request = request.add_web_search_tool(WebSearchTool::new_vertex().with_max_uses(Some(5)));
     }
 
     let mut stream = client.claude_stream(model, &request).await?;

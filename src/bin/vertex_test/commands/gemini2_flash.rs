@@ -59,6 +59,7 @@ pub async fn run(prompt: String) -> Result<()> {
                     Some(prompt),
                     Vec::new(),
                     available_model.short_name().to_string(),
+                    false,
                 )
                 .await;
             }

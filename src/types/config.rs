@@ -4,7 +4,11 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ThinkingLevel {
+    /// Minimize reasoning latency and token usage.
+    Minimal,
     Low,
+    /// Balance reasoning depth with latency.
+    Medium,
     High,
 }
 
@@ -13,12 +17,22 @@ pub struct ThinkingBudgetConfig {
     /// Thinking budget in tokens (0-32_768), -1 for auto, 0 to disable.
     #[serde(rename = "thinkingBudget")]
     pub thinking_budget: i32,
+    #[serde(rename = "includeThoughts", skip_serializing_if = "Option::is_none")]
+    include_thoughts: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ThinkingLevelConfig {
     #[serde(rename = "thinkingLevel")]
     pub thinking_level: ThinkingLevel,
+    #[serde(rename = "includeThoughts", skip_serializing_if = "Option::is_none")]
+    include_thoughts: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ThinkingSummaryConfig {
+    #[serde(rename = "includeThoughts")]
+    include_thoughts: bool,
 }
 
 /// Thinking configuration for models that support thinking mode.
@@ -27,25 +41,30 @@ pub struct ThinkingLevelConfig {
 pub enum ThinkingConfig {
     Budget(ThinkingBudgetConfig),
     Level(ThinkingLevelConfig),
+    /// Use the model's default thinking level or budget.
+    ModelDefault(ThinkingSummaryConfig),
 }
 
 impl ThinkingConfig {
     /// Create new thinking config with specific budget.
     #[must_use]
     pub fn with_budget(budget: i32) -> Self {
-        Self::Budget(ThinkingBudgetConfig { thinking_budget: budget.clamp(0, 32_768) })
+        Self::Budget(ThinkingBudgetConfig {
+            thinking_budget: budget.clamp(0, 32_768),
+            include_thoughts: None,
+        })
     }
 
     /// Enable thinking with automatic budget control (-1).
     #[must_use]
     pub const fn auto() -> Self {
-        Self::Budget(ThinkingBudgetConfig { thinking_budget: -1 })
+        Self::Budget(ThinkingBudgetConfig { thinking_budget: -1, include_thoughts: None })
     }
 
     /// Disable thinking mode via budget 0.
     #[must_use]
     pub const fn disabled() -> Self {
-        Self::Budget(ThinkingBudgetConfig { thinking_budget: 0 })
+        Self::Budget(ThinkingBudgetConfig { thinking_budget: 0, include_thoughts: None })
     }
 
     /// Default thinking config with a moderate 1024 token budget.
@@ -57,7 +76,24 @@ impl ThinkingConfig {
     /// Enable thinking with a specified level.
     #[must_use]
     pub const fn with_level(level: ThinkingLevel) -> Self {
-        Self::Level(ThinkingLevelConfig { thinking_level: level })
+        Self::Level(ThinkingLevelConfig { thinking_level: level, include_thoughts: None })
+    }
+
+    /// Request thought summaries with the model's default reasoning configuration.
+    #[must_use]
+    pub const fn summaries() -> Self {
+        Self::ModelDefault(ThinkingSummaryConfig { include_thoughts: true })
+    }
+
+    /// Control whether available thought summaries are returned.
+    #[must_use]
+    pub const fn with_summaries(mut self, include: bool) -> Self {
+        match &mut self {
+            Self::Budget(config) => config.include_thoughts = Some(include),
+            Self::Level(config) => config.include_thoughts = Some(include),
+            Self::ModelDefault(config) => config.include_thoughts = include,
+        }
+        self
     }
 
     /// Convenience for enabling low-level thinking.
@@ -77,7 +113,7 @@ impl ThinkingConfig {
     pub const fn budget_value(&self) -> Option<i32> {
         match self {
             Self::Budget(cfg) => Some(cfg.thinking_budget),
-            Self::Level(_) => None,
+            Self::Level(_) | Self::ModelDefault(_) => None,
         }
     }
 
@@ -86,9 +122,21 @@ impl ThinkingConfig {
     pub const fn level_value(&self) -> Option<ThinkingLevel> {
         match self {
             Self::Level(cfg) => Some(cfg.thinking_level),
-            Self::Budget(_) => None,
+            Self::Budget(_) | Self::ModelDefault(_) => None,
         }
     }
+}
+
+/// Output modalities supported by Gemini content generation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum ResponseModality {
+    /// Text output.
+    Text,
+    /// Generated images.
+    Image,
+    /// Generated speech audio.
+    Audio,
 }
 
 /// Generation configuration for content generation.
@@ -137,6 +185,22 @@ pub struct GenerationConfig {
     #[serde(rename = "thinkingConfig")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub thinking_config: Option<ThinkingConfig>,
+
+    /// Modalities to return, such as text and images or speech audio.
+    #[serde(rename = "responseModalities", skip_serializing_if = "Option::is_none")]
+    pub response_modalities: Option<Vec<ResponseModality>>,
+
+    /// Vertex image generation options, such as `aspectRatio` and `imageSize`.
+    #[serde(rename = "imageConfig", skip_serializing_if = "Option::is_none")]
+    pub image_config: Option<serde_json::Value>,
+
+    /// Vertex speech synthesis options, such as `voiceConfig`.
+    #[serde(rename = "speechConfig", skip_serializing_if = "Option::is_none")]
+    pub speech_config: Option<serde_json::Value>,
+
+    /// Vertex audio transcription options, such as `languageCodes` and `wordTimestamp`.
+    #[serde(rename = "audioTranscriptionConfig", skip_serializing_if = "Option::is_none")]
+    pub audio_transcription_config: Option<serde_json::Value>,
 }
 
 impl Default for GenerationConfig {
@@ -146,16 +210,33 @@ impl Default for GenerationConfig {
             top_p: Some(1.0),
             top_k: Some(32),
             max_output_tokens: Some(2048),
-            stop_sequences: None,
             candidate_count: Some(1),
-            response_mime_type: None,
-            response_schema: None,
-            thinking_config: None,
+            ..Self::model_defaults()
         }
     }
 }
 
 impl GenerationConfig {
+    /// Use the model's defaults for any generation options not explicitly set.
+    #[must_use]
+    pub const fn model_defaults() -> Self {
+        Self {
+            temperature: None,
+            top_p: None,
+            top_k: None,
+            max_output_tokens: None,
+            stop_sequences: None,
+            candidate_count: None,
+            response_mime_type: None,
+            response_schema: None,
+            thinking_config: None,
+            response_modalities: None,
+            image_config: None,
+            speech_config: None,
+            audio_transcription_config: None,
+        }
+    }
+
     /// Enable JSON structured output.
     #[must_use]
     pub fn with_json_response(mut self) -> Self {
@@ -275,7 +356,7 @@ impl GenerationConfig {
         self
     }
 
-    /// Enable thinking mode with a specific level (Low/High).
+    /// Enable thinking mode with a level supported by the selected model.
     #[must_use]
     #[allow(clippy::missing_const_for_fn)]
     pub fn with_thinking_level(mut self, level: ThinkingLevel) -> Self {

@@ -100,6 +100,20 @@ mod tests {
     }
 
     #[test]
+    fn parses_vertex_web_search_start_before_input_delta() {
+        let parser = ClaudeSseParser::new();
+        let payload = r#"data: {"type":"content_block_start","index":1,"content_block":{"type":"server_tool_use","id":"srvtoolu_search","name":"web_search"}}"#;
+        let event = parser.parse(payload).unwrap().unwrap();
+        assert!(matches!(
+            event,
+            StreamEvent::ContentBlockStart {
+                index: 1,
+                content_block: ContentBlock::ServerToolUse { name, input, .. }
+            } if name == "web_search" && input.is_null()
+        ));
+    }
+
+    #[test]
     fn ignores_comments_and_blank_lines() {
         let parser = ClaudeSseParser::new();
         let payload = format!(

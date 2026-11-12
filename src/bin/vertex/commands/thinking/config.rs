@@ -5,7 +5,9 @@ use super::settings::ThinkingSettings;
 pub fn describe_thinking_settings(settings: &ThinkingSettings) -> String {
     if let Some(level) = settings.thinking_level {
         return match level {
+            ThinkingLevel::Minimal => "Level: Minimal".to_string(),
             ThinkingLevel::Low => "Level: Low".to_string(),
+            ThinkingLevel::Medium => "Level: Medium".to_string(),
             ThinkingLevel::High => "Level: High".to_string(),
         };
     }

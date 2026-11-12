@@ -177,20 +177,17 @@ impl VertexClient {
         }
 
         // Step 3: Execute function calls and add responses
-        for function_call in &function_calls {
-            let result = executor(function_call)
-                .map_err(|e| VertexError::generic(format!("Function execution failed: {e}")))?;
-
-            let function_response_part = Part::FunctionResponse {
-                function_response: FunctionResponse {
-                    name: function_call.name.clone(),
-                    response: result,
-                },
-            };
-
-            conversation
-                .push(Content { role: "user".to_string(), parts: vec![function_response_part] });
-        }
+        let parts = function_calls
+            .iter()
+            .map(|function_call| {
+                let result = executor(function_call)
+                    .map_err(|e| VertexError::generic(format!("Function execution failed: {e}")))?;
+                Ok(Part::FunctionResponse {
+                    function_response: FunctionResponse::for_call(function_call, result),
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+        conversation.push(Content { role: "user".to_string(), parts });
 
         // Step 4: Send back with function responses to get final answer
         let final_request = GenerateContentRequest {
@@ -400,7 +397,7 @@ mod tests {
         args.insert("a".to_string(), json!(5.0));
         args.insert("b".to_string(), json!(3.0));
 
-        let call = FunctionCall { name: "calculate".to_string(), args };
+        let call = FunctionCall { id: None, name: "calculate".to_string(), args };
         let result = execute_calculator(&call).unwrap();
 
         assert_eq!(result["result"], 8.0);
@@ -413,7 +410,7 @@ mod tests {
         args.insert("location".to_string(), json!("New York"));
         args.insert("unit".to_string(), json!("fahrenheit"));
 
-        let call = FunctionCall { name: "get_weather".to_string(), args };
+        let call = FunctionCall { id: None, name: "get_weather".to_string(), args };
         let result = execute_mock_weather(&call).unwrap();
 
         assert_eq!(result["location"], "New York");

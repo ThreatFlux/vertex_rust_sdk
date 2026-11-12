@@ -28,6 +28,7 @@ fn bench_request_serialization(c: &mut Criterion) {
             response_mime_type: None,
             response_schema: None,
             thinking_config: None,
+            ..GenerationConfig::model_defaults()
         });
 
     group.bench_function("complex_request", |b| {

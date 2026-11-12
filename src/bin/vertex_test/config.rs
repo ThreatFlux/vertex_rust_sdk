@@ -1,31 +1,9 @@
 use serde_json::Value;
 use std::env;
-use threatflux_vertex_rust_sdk::models::Model;
+use threatflux_vertex_rust_sdk::{
+    get_model_info, model_descriptor::ModelDescriptor, models::Model,
+};
 use url::Url;
-
-pub const SUPPORTED_CLAUDE_WEB_SEARCH_PREFIXES: &[&str] = &[
-    "claude-sonnet-5",
-    "claude-fable-5",
-    "claude-opus-4-8",
-    "claude-opus-4-7",
-    "claude-opus-4-6",
-    "claude-sonnet-4-6",
-    "claude-sonnet-4-5",
-    "claude-sonnet-4",
-    "claude-3-7-sonnet",
-    "claude-3-5-sonnet",
-    "claude-haiku-4-5",
-    "claude-3-5-haiku",
-    "claude-opus-4-1",
-    "claude-opus-4",
-];
-
-pub fn claude_model_supports_web_search(model: &str) -> bool {
-    let normalized = model.to_ascii_lowercase();
-    let base = normalized.split('@').next().unwrap_or(normalized.as_str());
-
-    SUPPORTED_CLAUDE_WEB_SEARCH_PREFIXES.iter().any(|prefix| base.starts_with(prefix))
-}
 
 pub fn env_var(name: &str) -> Option<String> {
     env::var(name).ok().map(|value| value.trim().to_string()).filter(|v| !v.is_empty())
@@ -65,25 +43,15 @@ pub fn resolve_model_alias(input: &str) -> String {
         }
     }
 
-    let mut normalized = trimmed.to_ascii_lowercase();
-    if let Some(stripped) = normalized.strip_prefix("claude-") {
-        normalized = stripped.to_string();
+    if ModelDescriptor::parse(trimmed).is_ok_and(|descriptor| descriptor.publisher() == "anthropic")
+    {
+        if let Some(model) = get_model_info(&trimmed.replace('.', "-"))
+            .and_then(|info| info.canonical_id.strip_prefix("publishers/anthropic/models/"))
+        {
+            return model.to_string();
+        }
     }
-    normalized = normalized.replace('.', "-");
-
-    match normalized.as_str() {
-        "sonnet-5" => "claude-sonnet-5".to_string(),
-        "fable-5" => "claude-fable-5".to_string(),
-        "opus-5" => "claude-opus-5".to_string(),
-        "opus-4-8" | "opus-48" => "claude-opus-4-8".to_string(),
-        "opus-4-7" | "opus-47" => "claude-opus-4-7".to_string(),
-        "sonnet-4-6" | "sonnet-46" => "claude-sonnet-4-6".to_string(),
-        "opus-4-6" | "opus-46" => "claude-opus-4-6".to_string(),
-        "sonnet-4-5" | "sonnet-45" => "claude-sonnet-4-5".to_string(),
-        "haiku-4-5" | "haiku-45" => "claude-haiku-4-5".to_string(),
-        "opus-4-1" | "opus-41" => "claude-opus-4-1".to_string(),
-        _ => trimmed.to_string(),
-    }
+    trimmed.to_string()
 }
 
 pub fn model_display_name(model: &Model) -> String {
@@ -131,16 +99,6 @@ mod tests {
     }
 
     #[test]
-    fn resolves_claude_aliases() {
-        assert!(claude_model_supports_web_search("claude-sonnet-5"));
-        assert!(claude_model_supports_web_search("claude-fable-5"));
-        assert!(!claude_model_supports_web_search("claude-opus-5"));
-        assert!(claude_model_supports_web_search("claude-sonnet-4-5"));
-        assert!(claude_model_supports_web_search("claude-3-5-haiku@20240229"));
-        assert!(!claude_model_supports_web_search("gemini-3-pro-preview"));
-    }
-
-    #[test]
     fn resolves_env_overrides_and_aliases() {
         let _guard = env_lock();
         let key = "VERTEX_MODEL_SONNET_4_5";
@@ -151,6 +109,8 @@ mod tests {
         assert_eq!(resolve_model_alias("fable-5"), "claude-fable-5");
         assert_eq!(resolve_model_alias("opus-5"), "claude-opus-5");
         assert_eq!(resolve_model_alias("haiku-4.5"), "claude-haiku-4-5");
+        assert_eq!(resolve_model_alias("haiku-5.5"), "claude-haiku-5-5");
+        assert_eq!(resolve_model_alias("fable-52"), "claude-fable-5-2");
         assert_eq!(resolve_model_alias(""), "");
         let explicit = "publishers/acme/models/custom";
         assert_eq!(resolve_model_alias(explicit), explicit);

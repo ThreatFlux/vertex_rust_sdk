@@ -195,6 +195,7 @@ fn test_usage_metadata_serialization() {
 fn part_function_call_with_thought_signature_deserializes() {
     let json = r#"{
         "functionCall": {
+            "id": "call-1",
             "name": "check_flight",
             "args": {
                 "flight": "AA100"
@@ -204,13 +205,37 @@ fn part_function_call_with_thought_signature_deserializes() {
     }"#;
 
     let part: Part = serde_json::from_str(json).unwrap();
-    match part {
-        Part::FunctionCall { function_call } => {
-            assert_eq!(function_call.name, "check_flight");
-            assert_eq!(function_call.args.get("flight").unwrap(), "AA100");
-        }
-        other => panic!("unexpected part: {other:?}"),
-    }
+    let function_call = part.as_function_call().unwrap();
+    assert_eq!(function_call.name, "check_flight");
+    assert_eq!(function_call.id.as_deref(), Some("call-1"));
+    assert_eq!(function_call.args.get("flight").unwrap(), "AA100");
+    assert_eq!(part.thought_signature(), Some("<Signature_A>"));
+    assert_eq!(
+        serde_json::to_value(part).unwrap(),
+        serde_json::from_str::<serde_json::Value>(json).unwrap()
+    );
+}
+
+#[test]
+fn vertex_thought_summaries_and_media_metadata_round_trip() {
+    let thought =
+        serde_json::json!({"text": "Reasoning", "thought": true, "thoughtSignature": "sig-a"});
+    let part: Part = serde_json::from_value(thought.clone()).unwrap();
+    assert_eq!(part.as_thinking(), Some("Reasoning"));
+    assert_eq!(part.as_text(), None);
+    assert_eq!(serde_json::to_value(part).unwrap(), thought);
+
+    let media = serde_json::json!({"inlineData": {"mimeType": "image/png", "data": "aGVsbG8="}, "thoughtSignature": "sig-b"});
+    let part: Part = serde_json::from_value(media.clone()).unwrap();
+    assert_eq!(part.as_inline_data().unwrap().mime_type, "image/png");
+    assert_eq!(serde_json::to_value(part).unwrap(), media);
+
+    let transcript =
+        serde_json::json!({"audioTranscription": {"text": "Spoken words", "speakerLabel": "1"}});
+    let part: Part = serde_json::from_value(transcript.clone()).unwrap();
+    assert_eq!(part.as_text(), Some("Spoken words"));
+    assert_eq!(part.audio_transcription().unwrap()["speakerLabel"], "1");
+    assert_eq!(serde_json::to_value(part).unwrap(), transcript);
 }
 
 #[test]

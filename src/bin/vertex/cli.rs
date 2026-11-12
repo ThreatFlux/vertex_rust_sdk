@@ -1,17 +1,23 @@
+use threatflux_vertex_rust_sdk::config::DEFAULT_MODEL;
+
 use clap::{Parser, Subcommand, ValueEnum};
 
 use threatflux_vertex_rust_sdk::types::ThinkingLevel;
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
 pub enum ThinkingLevelArg {
+    Minimal,
     Low,
+    Medium,
     High,
 }
 
 impl From<ThinkingLevelArg> for ThinkingLevel {
     fn from(value: ThinkingLevelArg) -> Self {
         match value {
+            ThinkingLevelArg::Minimal => Self::Minimal,
             ThinkingLevelArg::Low => Self::Low,
+            ThinkingLevelArg::Medium => Self::Medium,
             ThinkingLevelArg::High => Self::High,
         }
     }
@@ -59,7 +65,7 @@ pub enum Commands {
         prompt: String,
 
         /// Model to use
-        #[arg(short, long, default_value = "gemini-3-pro-preview")]
+        #[arg(short, long, default_value = DEFAULT_MODEL)]
         model: String,
 
         /// Enable streaming output
@@ -113,7 +119,7 @@ pub enum Commands {
         prompt: String,
 
         /// Model to use
-        #[arg(short, long, default_value = "gemini-3-pro-preview")]
+        #[arg(short, long, default_value = DEFAULT_MODEL)]
         model: String,
 
         /// Temperature (0.0 to 1.0)
@@ -148,7 +154,7 @@ pub enum Commands {
     /// Interactive chat session
     Chat {
         /// Model to use
-        #[arg(short, long, default_value = "gemini-1.5-flash")]
+        #[arg(short, long, default_value = DEFAULT_MODEL)]
         model: String,
 
         /// System instruction
@@ -162,7 +168,7 @@ pub enum Commands {
         text: String,
 
         /// Model to use for tokenization
-        #[arg(short, long, default_value = "gemini-1.5-flash")]
+        #[arg(short, long, default_value = DEFAULT_MODEL)]
         model: String,
     },
 
@@ -184,7 +190,7 @@ pub enum Commands {
         prompt: String,
 
         /// Model to use
-        #[arg(short, long, default_value = "gemini-2.5-flash")]
+        #[arg(short, long, default_value = DEFAULT_MODEL)]
         model: String,
 
         /// System instruction
@@ -199,7 +205,7 @@ pub enum Commands {
         prompt: String,
 
         /// Model to use
-        #[arg(short, long, default_value = "gemini-2.5-flash")]
+        #[arg(short, long, default_value = DEFAULT_MODEL)]
         model: String,
 
         /// Enable streaming output
@@ -223,7 +229,7 @@ pub enum Commands {
     #[command(name = "system-test")]
     SystemTest {
         /// Model to use
-        #[arg(short, long, default_value = "gemini-2.5-flash")]
+        #[arg(short, long, default_value = DEFAULT_MODEL)]
         model: String,
     },
 
@@ -234,7 +240,7 @@ pub enum Commands {
         prompt: String,
 
         /// Model to use
-        #[arg(short, long, default_value = "gemini-2.5-flash")]
+        #[arg(short, long, default_value = DEFAULT_MODEL)]
         model: String,
 
         /// Example type: person, recipe, orgchart
@@ -250,7 +256,7 @@ pub enum Commands {
     #[command(name = "structured-test")]
     StructuredTest {
         /// Model to use
-        #[arg(short, long, default_value = "gemini-2.5-flash")]
+        #[arg(short, long, default_value = DEFAULT_MODEL)]
         model: String,
     },
 
@@ -258,7 +264,7 @@ pub enum Commands {
     #[command(name = "thinking-demo")]
     ThinkingDemo {
         /// Model to use (thinking mode requires Gemini 2.5 Flash or later)
-        #[arg(short, long, default_value = "gemini-2.5-flash")]
+        #[arg(short, long, default_value = DEFAULT_MODEL)]
         model: String,
 
         /// Example type: math, logic, reasoning, decision, custom
@@ -282,7 +288,7 @@ pub enum Commands {
     #[command(name = "grounding-demo")]
     GroundingDemo {
         /// Model to use (grounding requires Gemini 2.5 Flash or later)
-        #[arg(short, long, default_value = "gemini-2.5-flash")]
+        #[arg(short, long, default_value = DEFAULT_MODEL)]
         model: String,
 
         /// Example type: news, events, facts, weather, stocks, custom

@@ -57,7 +57,7 @@ cargo run --bin vertex-chat --features cli -- --project your-project-id
 cargo run --bin vertex-chat --features cli -- \
   --project your-project-id \
   --location us-central1 \
-  --model gemini-2.5-flash \
+  --model gemini-3.8-flash \
   --temperature 0.9 \
   --max-tokens 8192 \
   --system "You are a helpful assistant"
@@ -77,7 +77,7 @@ cargo run --bin vertex-chat --features cli
 Options:
   -p, --project <PROJECT>           Project ID
   -l, --location <LOCATION>         Location/region [default: us-central1]
-  -m, --model <MODEL>               Model to use [default: gemini-2.5-flash]
+  -m, --model <MODEL>               Model to use [default: gemini-3.8-flash]
   -t, --temperature <TEMPERATURE>   Temperature (0.0 to 2.0) [default: 0.9]
   -o, --max-tokens <MAX_TOKENS>     Max output tokens [default: 8192]
   -s, --system <SYSTEM>             System instruction
@@ -106,7 +106,7 @@ $ cargo run --bin vertex-chat --features cli
 === Vertex AI Chat ===
 Project: my-project
 Location: us-central1
-Model: gemini-2.5-flash
+Model: gemini-3.8-flash
 Temperature: 0.9
 
 Commands: 'help', 'clear', 'stats', 'temp', 'quit'

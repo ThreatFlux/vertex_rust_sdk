@@ -61,7 +61,11 @@ mod tests {
 
         append_function_response(
             &mut history,
-            FunctionResponse { name: "fn".to_string(), response: serde_json::json!({"ok": true}) },
+            FunctionResponse {
+                id: None,
+                name: "fn".to_string(),
+                response: serde_json::json!({"ok": true}),
+            },
         );
         assert_eq!(history.len(), 3);
         assert_eq!(history[2].role, "user");

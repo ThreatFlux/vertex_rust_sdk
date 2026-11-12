@@ -1,7 +1,7 @@
-use crate::vertex_test::config::{claude_model_supports_web_search, resolve_model_alias};
+use crate::vertex_test::config::resolve_model_alias;
 use crate::vertex_test::output::print_claude_blocks;
 use crate::vertex_test::progress;
-use anyhow::Result;
+use anyhow::{bail, Result};
 use colored::Colorize;
 use threatflux_vertex_rust_sdk::claude::{MessageRequest, WebSearchTool};
 use threatflux_vertex_rust_sdk::client::VertexClient;
@@ -9,7 +9,12 @@ use threatflux_vertex_rust_sdk::config::Config;
 use threatflux_vertex_rust_sdk::ModelDescriptor;
 use threatflux_vertex_rust_sdk::{api::generate::GenerateApi, models::GenerateContentRequest};
 
-pub async fn run(prompt: Option<String>, prompt_words: Vec<String>, model: String) -> Result<()> {
+pub async fn run(
+    prompt: Option<String>,
+    prompt_words: Vec<String>,
+    model: String,
+    web_search: bool,
+) -> Result<()> {
     println!("{}", "Testing Non-Streaming Generation...".bold().cyan());
     println!("Model: {}", model.yellow());
 
@@ -28,7 +33,9 @@ pub async fn run(prompt: Option<String>, prompt_words: Vec<String>, model: Strin
     let descriptor = ModelDescriptor::parse(&resolved_model)?;
 
     if descriptor.publisher() == "anthropic" {
-        run_claude(&client, &resolved_model, &final_prompt, &descriptor, spinner).await
+        run_claude(&client, &resolved_model, &final_prompt, web_search, spinner).await
+    } else if web_search {
+        bail!("--web-search requires a Claude model");
     } else {
         run_gemini(&client, &resolved_model, &final_prompt, spinner).await
     }
@@ -38,16 +45,15 @@ async fn run_claude(
     client: &VertexClient,
     model: &str,
     prompt: &str,
-    descriptor: &ModelDescriptor,
+    web_search: bool,
     spinner: indicatif::ProgressBar,
 ) -> Result<()> {
     spinner.set_message("Invoking Claude message endpoint...");
 
-    let mut request =
-        MessageRequest::new().max_tokens(500).temperature(0.7).add_user_message(prompt.to_string());
+    let mut request = MessageRequest::new().max_tokens(4096).add_user_message(prompt.to_string());
 
-    if claude_model_supports_web_search(descriptor.model()) {
-        request = request.add_web_search_tool(WebSearchTool::new().with_max_uses(Some(5)));
+    if web_search {
+        request = request.add_web_search_tool(WebSearchTool::new_vertex().with_max_uses(Some(5)));
     }
 
     let response = client.claude_message(model, &request).await?;

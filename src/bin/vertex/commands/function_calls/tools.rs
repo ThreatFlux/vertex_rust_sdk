@@ -17,7 +17,7 @@ pub fn execute_function_call(call: &FunctionCall) -> FunctionResponse {
         }),
     };
 
-    FunctionResponse { name: call.name.clone(), response }
+    FunctionResponse::for_call(call, response)
 }
 
 fn weather_function() -> FunctionDeclaration {

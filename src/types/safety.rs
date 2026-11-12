@@ -27,6 +27,9 @@ pub enum FinishReason {
     Stop,
     #[serde(rename = "MAX_TOKENS")]
     MaxTokens,
+    /// The model reached the segment limit and can continue with a token.
+    #[serde(rename = "CONTINUATION", alias = "FINISH_REASON_CONTINUATION")]
+    Continuation,
     #[serde(rename = "SAFETY")]
     Safety,
     #[serde(rename = "RECITATION")]
@@ -52,6 +55,7 @@ pub enum FinishReason {
 /// Generation candidate.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Candidate {
+    #[serde(default)]
     pub content: Content,
     #[serde(rename = "finishReason")]
     #[serde(skip_serializing_if = "Option::is_none")]

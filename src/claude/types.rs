@@ -42,7 +42,11 @@ pub enum ContentBlock {
     /// Plain text content.
     Text {
         text: String,
-        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        #[serde(
+            default,
+            deserialize_with = "deserialize_citations",
+            skip_serializing_if = "Vec::is_empty"
+        )]
         citations: Vec<Citation>,
     },
     /// Inline image encoded as base64.
@@ -59,7 +63,12 @@ pub enum ContentBlock {
         is_error: Option<bool>,
     },
     /// Invocation of a server-managed tool (e.g., `web_search`).
-    ServerToolUse { id: String, name: String, input: serde_json::Value },
+    ServerToolUse {
+        id: String,
+        name: String,
+        #[serde(default, skip_serializing_if = "serde_json::Value::is_null")]
+        input: serde_json::Value,
+    },
     /// Result payload from a server tool invocation.
     WebSearchToolResult { tool_use_id: String, content: WebSearchToolContent },
     /// Extended thinking content block.
@@ -68,6 +77,12 @@ pub enum ContentBlock {
         #[serde(skip_serializing_if = "Option::is_none")]
         signature: Option<String>,
     },
+}
+
+fn deserialize_citations<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Vec<Citation>, D::Error> {
+    Option::<Vec<Citation>>::deserialize(deserializer).map(Option::unwrap_or_default)
 }
 
 impl ContentBlock {
@@ -233,6 +248,9 @@ impl Tool {
 /// Supported server-managed tool identifiers.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum WebSearchToolType {
+    /// Google-managed web search on Vertex AI.
+    #[serde(rename = "web_search")]
+    VertexWebSearch,
     #[serde(rename = "web_search_20250305")]
     #[default]
     WebSearch,
@@ -306,7 +324,7 @@ impl Default for WebSearchTool {
 
 #[allow(clippy::missing_const_for_fn)]
 impl WebSearchTool {
-    /// Create a web search tool configuration with defaults.
+    /// Create the original versioned web search tool configuration.
     #[must_use]
     pub fn new() -> Self {
         Self {
@@ -317,6 +335,13 @@ impl WebSearchTool {
             blocked_domains: None,
             user_location: None,
         }
+    }
+
+    /// Create a Google-managed web search tool for Vertex AI.
+    /// The project must be permitted to use web search by its organization policy.
+    #[must_use]
+    pub fn new_vertex() -> Self {
+        Self { tool_type: WebSearchToolType::VertexWebSearch, ..Self::new() }
     }
 
     /// Create a web search tool using the 2026-02-09 variant (for 4.6 models).
@@ -437,6 +462,8 @@ pub enum StopReason {
     EndTurn,
     StopSequence,
     ToolUse,
+    PauseTurn,
+    Refusal,
     ModelContextWindowExceeded,
 }
 
@@ -447,6 +474,7 @@ pub enum ThinkingEffort {
     Low,
     Medium,
     High,
+    Xhigh,
     Max,
 }
 
@@ -459,7 +487,8 @@ pub struct ThinkingConfig {
     pub budget_tokens: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allow_tool_use: Option<bool>,
-    /// Effort level for adaptive thinking (4.6+). Ignored when type is not `adaptive`.
+    /// Effort level for adaptive and between-tools thinking. The client sends
+    /// it as `output_config.effort` in the Claude Messages request.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub effort: Option<ThinkingEffort>,
     /// Display control for thinking content in streaming responses.
@@ -517,6 +546,13 @@ impl ThinkingConfig {
             effort: Some(effort),
             display: None,
         }
+    }
+
+    /// Skip up-front thinking and allow thinking between tool calls on Claude
+    /// Sonnet 5.5. Supported effort levels are low, medium, and high.
+    #[must_use]
+    pub fn between_tools(effort: ThinkingEffort) -> Self {
+        Self { thinking_type: "between_tools".to_string(), ..Self::adaptive(effort) }
     }
 
     /// Adaptive thinking with tool use enabled.
@@ -678,7 +714,7 @@ impl CitationsConfig {
     }
 }
 
-/// Request payload for Claude Sonnet via Vertex Anthropic endpoint.
+/// Request payload for Claude via the Vertex Anthropic endpoint.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MessageRequest {
     #[serde(rename = "anthropic_version")]
@@ -1244,6 +1280,7 @@ mod tests {
             (ThinkingEffort::Low, "low"),
             (ThinkingEffort::Medium, "medium"),
             (ThinkingEffort::High, "high"),
+            (ThinkingEffort::Xhigh, "xhigh"),
             (ThinkingEffort::Max, "max"),
         ] {
             let json = serde_json::to_value(effort).unwrap();

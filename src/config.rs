@@ -6,6 +6,8 @@ use std::env;
 use crate::model_descriptor::ModelDescriptor;
 
 pub const DEFAULT_ANTHROPIC_LOCATION: &str = "us-east5";
+/// Default Gemini model for general-purpose generation.
+pub const DEFAULT_MODEL: &str = "gemini-3.8-flash";
 
 /// Configuration for Vertex AI client
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -28,7 +30,7 @@ pub struct Config {
     /// Enable debug logging
     pub debug: bool,
 
-    /// Model to use (e.g., "gemini-1.5-pro" or "claude-sonnet-4-5")
+    /// Model to use (e.g., "gemini-3.8-flash" or "claude-sonnet-5-5")
     pub model: String,
 
     /// Optional publisher-specific location overrides (e.g., Anthropic -> us-east5)
@@ -57,7 +59,7 @@ impl Config {
             timeout_secs: 60,
             max_retries: Self::get_max_retries(),
             debug: env::var("DEBUG").is_ok(),
-            model: env::var("VERTEX_MODEL").unwrap_or_else(|_| "gemini-1.5-flash".to_string()),
+            model: env::var("VERTEX_MODEL").unwrap_or_else(|_| DEFAULT_MODEL.to_string()),
             publisher_locations,
             base_url_override: env::var("VERTEX_BASE_URL").ok(),
         })
@@ -105,7 +107,7 @@ impl Config {
                 .unwrap_or(60),
             max_retries: Self::get_max_retries(),
             debug: env::var("DEBUG").is_ok() || env::var("VERTEX_DEBUG").is_ok(),
-            model: env::var("VERTEX_MODEL").unwrap_or_else(|_| "gemini-1.5-flash".to_string()),
+            model: env::var("VERTEX_MODEL").unwrap_or_else(|_| DEFAULT_MODEL.to_string()),
             publisher_locations,
             base_url_override: env::var("VERTEX_BASE_URL").ok(),
         })
@@ -225,7 +227,7 @@ impl Default for Config {
             timeout_secs: 60,
             max_retries: Self::get_max_retries(),
             debug: false,
-            model: "gemini-1.5-flash".to_string(),
+            model: DEFAULT_MODEL.to_string(),
             publisher_locations,
             base_url_override: None,
         }
@@ -235,10 +237,11 @@ impl Default for Config {
 /// Resolve the Vertex endpoint hostname for a given region/location.
 #[must_use]
 pub(crate) fn endpoint_for_region(region: &str) -> String {
-    if region.eq_ignore_ascii_case("global") {
-        "https://aiplatform.googleapis.com".to_string()
-    } else {
-        format!("https://{}-aiplatform.googleapis.com", region.to_ascii_lowercase())
+    let region = region.to_ascii_lowercase();
+    match region.as_str() {
+        "global" => crate::DEFAULT_ENDPOINT.to_string(),
+        "us" | "eu" => format!("https://aiplatform.{region}.rep.googleapis.com"),
+        _ => format!("https://{region}-aiplatform.googleapis.com"),
     }
 }
 

@@ -2,7 +2,7 @@ use anyhow::{anyhow, Result};
 use std::ops::RangeInclusive;
 
 pub const DEFAULT_LOCATION: &str = "us-central1";
-pub const DEFAULT_MODEL: &str = "gemini-2.5-flash";
+pub use crate::config::DEFAULT_MODEL;
 pub const DEFAULT_TEMPERATURE: f32 = 0.9;
 pub const DEFAULT_MAX_TOKENS: i32 = 8_192;
 pub const DEFAULT_SYSTEM_PROMPT: &str = "You are a helpful AI assistant. Be concise but informative in your responses. If asked about your capabilities, mention that you're powered by Google's Gemini model via the Vertex AI API.";

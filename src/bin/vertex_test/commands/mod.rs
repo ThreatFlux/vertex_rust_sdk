@@ -14,11 +14,11 @@ use anyhow::Result;
 pub async fn run(cli: Cli) -> Result<()> {
     match cli.command {
         Commands::Auth => auth::run().await,
-        Commands::Generate { prompt, model, prompt_words } => {
-            generate::run(prompt, prompt_words, model).await
+        Commands::Generate { prompt, model, prompt_words, web_search } => {
+            generate::run(prompt, prompt_words, model, web_search).await
         }
-        Commands::Stream { prompt, model, input_files } => {
-            stream::run(prompt, model, input_files).await
+        Commands::Stream { prompt, model, input_files, web_search } => {
+            stream::run(prompt, model, input_files, web_search).await
         }
         Commands::Function { prompt, model } => function_call::run(prompt, model).await,
         Commands::All { model } => all::run(model).await,

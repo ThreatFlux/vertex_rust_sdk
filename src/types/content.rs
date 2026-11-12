@@ -14,6 +14,9 @@ pub struct ThinkingPart {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Part {
+    /// A content part with Vertex thought or speech metadata.
+    Annotated(AnnotatedPart),
+
     /// Text content.
     Text { text: String },
 
@@ -98,6 +101,171 @@ impl Part {
     pub fn thinking<S: Into<String>>(thought: S) -> Self {
         Self::Thinking { thought: thought.into() }
     }
+
+    /// Create a text-to-speech part with an optional speaker and speaking style.
+    #[must_use]
+    pub fn speech_text(text: impl Into<String>, metadata: SpeechMetadata) -> Self {
+        Self::Annotated(AnnotatedPart {
+            metadata: PartMetadata { speech_metadata: Some(metadata), ..Default::default() },
+            part: Some(Box::new(Self::text(text))),
+        })
+    }
+
+    /// The opaque thought signature to preserve when sending this part back to Vertex.
+    #[must_use]
+    pub fn thought_signature(&self) -> Option<&str> {
+        match self {
+            Self::Annotated(part) => part.metadata.thought_signature.as_deref(),
+            _ => None,
+        }
+    }
+
+    /// Access normal text, excluding model thinking summaries.
+    #[must_use]
+    pub fn as_text(&self) -> Option<&str> {
+        match self {
+            Self::Text { text } => Some(text),
+            Self::Annotated(part) if part.metadata.thought != Some(true) => part
+                .part
+                .as_deref()
+                .and_then(Self::as_text)
+                .or_else(|| part.metadata.audio_transcription.as_ref()?.get("text")?.as_str()),
+            _ => None,
+        }
+    }
+
+    /// Access a model thinking summary.
+    #[must_use]
+    pub fn as_thinking(&self) -> Option<&str> {
+        match self {
+            Self::Thinking { thought } => Some(thought),
+            Self::Annotated(part) if part.metadata.thought == Some(true) => {
+                part.part.as_deref()?.as_text()
+            }
+            _ => None,
+        }
+    }
+
+    /// Access a function call, including any call ID.
+    #[must_use]
+    pub fn as_function_call(&self) -> Option<&FunctionCall> {
+        match self.payload()? {
+            Self::FunctionCall { function_call } => Some(function_call),
+            _ => None,
+        }
+    }
+
+    /// Access generated or supplied inline media, including images and audio.
+    #[must_use]
+    pub fn as_inline_data(&self) -> Option<&InlineData> {
+        match self.payload()? {
+            Self::InlineData { inline_data } => Some(inline_data),
+            _ => None,
+        }
+    }
+
+    /// Access transcription details such as speaker labels and word timings.
+    #[must_use]
+    pub const fn audio_transcription(&self) -> Option<&serde_json::Value> {
+        match self {
+            Self::Annotated(part) => part.metadata.audio_transcription.as_ref(),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn payload(&self) -> Option<&Self> {
+        match self {
+            Self::Annotated(part) => part.part.as_deref(),
+            _ => Some(self),
+        }
+    }
+}
+
+/// A part with its model-provided metadata retained for subsequent turns.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AnnotatedPart {
+    #[serde(flatten)]
+    metadata: PartMetadata,
+    #[serde(
+        flatten,
+        serialize_with = "serialize_payload",
+        deserialize_with = "deserialize_payload",
+        skip_serializing_if = "Option::is_none"
+    )]
+    part: Option<Box<Part>>,
+}
+
+// Convert through a JSON object to keep the recursive part on a single
+// serializer and deserializer type when flattened.
+#[allow(clippy::ref_option)]
+fn serialize_payload<S: serde::Serializer>(
+    part: &Option<Box<Part>>,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    let value = serde_json::to_value(part).map_err(serde::ser::Error::custom)?;
+    value.serialize(serializer)
+}
+
+fn deserialize_payload<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<Box<Part>>, D::Error> {
+    let payload = serde_json::Map::deserialize(deserializer)?;
+    if payload.is_empty() {
+        return Ok(None);
+    }
+    let part = serde_json::from_value(serde_json::Value::Object(payload))
+        .map_err(serde::de::Error::custom)?;
+    Ok(Some(part))
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", try_from = "PartMetadataWire")]
+struct PartMetadata {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    thought_signature: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    thought: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    speech_metadata: Option<SpeechMetadata>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    audio_transcription: Option<serde_json::Value>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PartMetadataWire {
+    thought_signature: Option<String>,
+    thought: Option<bool>,
+    speech_metadata: Option<SpeechMetadata>,
+    audio_transcription: Option<serde_json::Value>,
+}
+
+impl TryFrom<PartMetadataWire> for PartMetadata {
+    type Error = &'static str;
+
+    fn try_from(wire: PartMetadataWire) -> Result<Self, Self::Error> {
+        let PartMetadataWire { thought_signature, thought, speech_metadata, audio_transcription } =
+            wire;
+        if thought_signature.is_none()
+            && thought.is_none()
+            && speech_metadata.is_none()
+            && audio_transcription.is_none()
+        {
+            return Err("part has no annotations");
+        }
+        Ok(Self { thought_signature, thought, speech_metadata, audio_transcription })
+    }
+}
+
+/// Directions for a Gemini text-to-speech segment.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct SpeechMetadata {
+    /// Speaker name matching the speech configuration for multi-speaker audio.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub speaker: Option<String>,
+    /// Natural-language directions for how to speak this segment.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub style: Option<String>,
 }
 
 /// File data for multimodal content.
@@ -118,11 +286,13 @@ pub struct InlineData {
 }
 
 /// Content with role and parts.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Content {
     /// Role of the content (user, model, system).
+    #[serde(default)]
     pub role: String,
     /// Parts of the content.
+    #[serde(default)]
     pub parts: Vec<Part>,
 }
 

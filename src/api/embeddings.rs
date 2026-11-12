@@ -1,12 +1,12 @@
-//! Vertex AI text embeddings API
+//! Vertex AI text and multimodal embeddings APIs.
 //!
-//! Wraps the `predict` endpoint for embedding models such as
-//! `gemini-embedding-001`. The request/response shapes follow the Vertex AI
-//! text-embeddings reference.
+//! Uses `predict` for text embedding models such as `gemini-embedding-001`
+//! and `embedContent` for Gemini Embedding 2.
 
-use crate::client::VertexClient;
+use crate::client::{effective_model_name, VertexClient};
 use crate::error::{Result, VertexError};
 use crate::model_descriptor::ModelDescriptor;
+use crate::types::Content;
 use serde::{Deserialize, Serialize};
 
 /// A single embedding instance sent to the predict endpoint.
@@ -55,6 +55,35 @@ pub struct EmbeddingRequest {
     /// Optional parameters.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parameters: Option<EmbeddingParameters>,
+}
+
+/// Request for one multimodal embedding from Gemini Embedding 2.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EmbedContentRequest {
+    /// Text, images, documents, audio, or video to embed together.
+    pub content: Content,
+    /// Optional configuration for this embedding.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub embed_content_config: Option<EmbedContentConfig>,
+}
+
+/// Options for Gemini Embedding 2. Put task instructions and titles in the input text.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EmbedContentConfig {
+    /// Desired output dimensionality, up to 3,072.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_dimensionality: Option<u32>,
+    /// Whether to truncate input that exceeds the model's token limit.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_truncate: Option<bool>,
+    /// Enable OCR for document input.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub document_ocr: Option<bool>,
+    /// Extract audio tracks from video input.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub audio_track_extraction: Option<bool>,
 }
 
 impl EmbeddingRequest {
@@ -130,6 +159,15 @@ pub struct EmbeddingValues {
     pub statistics: Option<EmbeddingStatistics>,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct EmbedContentResponse {
+    embedding: EmbeddingValues,
+    #[serde(default)]
+    truncated: bool,
+    usage_metadata: Option<crate::types::UsageMetadata>,
+}
+
 /// One prediction entry returned by the predict endpoint.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EmbeddingPrediction {
@@ -183,6 +221,19 @@ impl<'a> EmbeddingsApi<'a> {
     ) -> Result<EmbeddingResponse> {
         self.client.embed(model, request).await
     }
+
+    /// Embed one multimodal input using Gemini Embedding 2.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the request fails or the response cannot be parsed.
+    pub async fn embed_content(
+        &self,
+        model: &str,
+        request: &EmbedContentRequest,
+    ) -> Result<EmbeddingValues> {
+        self.client.embed_content(model, request).await
+    }
 }
 
 impl VertexClient {
@@ -195,8 +246,8 @@ impl VertexClient {
 
     /// Embed content using the specified model.
     ///
-    /// Sends a predict request to the Vertex AI embeddings endpoint and
-    /// returns the resulting embedding vectors.
+    /// Returns one embedding per text instance. For Gemini Embedding 2, the
+    /// SDK sends a separate `embedContent` request per instance.
     ///
     /// # Example
     ///
@@ -233,6 +284,30 @@ impl VertexClient {
         request: &EmbeddingRequest,
     ) -> Result<EmbeddingResponse> {
         let descriptor = ModelDescriptor::parse(model)?;
+        if descriptor.publisher() == "google"
+            && matches!(
+                effective_model_name(&descriptor).as_str(),
+                "gemini-embedding-2" | "gemini-embedding-2-preview"
+            )
+        {
+            let mut predictions = Vec::with_capacity(request.instances.len());
+            for instance in &request.instances {
+                let embed_request = EmbedContentRequest {
+                    content: Content::user_text(embedding_2_text(instance)),
+                    embed_content_config: request.parameters.as_ref().map(|params| {
+                        EmbedContentConfig {
+                            output_dimensionality: params.output_dimensionality,
+                            auto_truncate: params.auto_truncate,
+                            ..Default::default()
+                        }
+                    }),
+                };
+                let embeddings = self.embed_content(model, &embed_request).await?;
+                predictions.push(EmbeddingPrediction { embeddings });
+            }
+            return Ok(EmbeddingResponse { predictions });
+        }
+
         let context = self.model_request_context(&descriptor);
         let path = format!("/v1/{}:predict", context.resource_path);
         let url = self.build_url_for_endpoint(&context.endpoint, &path);
@@ -255,6 +330,45 @@ impl VertexClient {
         )
     }
 
+    /// Embed one multimodal input using Gemini Embedding 2.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the request fails or the response cannot be parsed.
+    pub async fn embed_content(
+        &self,
+        model: &str,
+        request: &EmbedContentRequest,
+    ) -> Result<EmbeddingValues> {
+        let descriptor = ModelDescriptor::parse(model)?;
+        let context = self.model_request_context(&descriptor);
+        let path = format!("/v1/{}:embedContent", context.resource_path);
+        let url = self.build_url_for_endpoint(&context.endpoint, &path);
+        let response = self.make_authenticated_request(&url, request).await?;
+        let status = response.status();
+        if !status.is_success() {
+            return Err(VertexError::Api {
+                code: status.to_string(),
+                message: response.text().await?,
+            });
+        }
+
+        let mut response: EmbedContentResponse = response.json().await?;
+        if let Some(usage) = response.usage_metadata {
+            response.embedding.statistics = Some(EmbeddingStatistics {
+                truncated: response.truncated,
+                token_count: u32::try_from(usage.prompt_token_count).unwrap_or_default(),
+            });
+        } else if response.truncated {
+            response
+                .embedding
+                .statistics
+                .get_or_insert(EmbeddingStatistics { truncated: true, token_count: 0 })
+                .truncated = true;
+        }
+        Ok(response.embedding)
+    }
+
     /// Embed a single text string (convenience wrapper).
     ///
     /// # Errors
@@ -268,6 +382,24 @@ impl VertexClient {
             .map(<[f32]>::to_vec)
             .ok_or_else(|| VertexError::generic("Empty embedding response".to_string()))
     }
+}
+
+fn embedding_2_text(instance: &EmbeddingInstance) -> String {
+    let content = &instance.content;
+    let task = match instance.task_type {
+        Some(EmbeddingTaskType::RetrievalQuery) => "search result",
+        Some(EmbeddingTaskType::SemanticSimilarity) => "sentence similarity",
+        Some(EmbeddingTaskType::Classification) => "classification",
+        Some(EmbeddingTaskType::Clustering) => "clustering",
+        Some(EmbeddingTaskType::QuestionAnswering) => "question answering",
+        Some(EmbeddingTaskType::FactVerification) => "fact checking",
+        Some(EmbeddingTaskType::RetrievalDocument) => {
+            let title = instance.title.as_deref().unwrap_or("none");
+            return format!("title: {title} | text: {content}");
+        }
+        None => return content.clone(),
+    };
+    format!("task: {task} | query: {content}")
 }
 
 #[cfg(test)]

@@ -122,6 +122,7 @@ impl ModelDescriptor {
             || lower.contains("sonnet")
             || lower.contains("haiku")
             || lower.contains("fable")
+            || lower.contains("mythos")
         {
             "anthropic".to_string()
         } else {

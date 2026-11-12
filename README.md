@@ -119,12 +119,16 @@ before deploying to production.
 | Server-sent event streaming | `VertexClient::stream_generate_content` | Implemented |
 | Tools and function calling | `GenerateContentRequest`, `FunctionBuilder`, `execute_function_calling_flow` | Implemented |
 | Structured output, grounding, safety, and thinking request types | `types` module | Implemented |
-| Embeddings | `VertexClient::embed`, `VertexClient::embeddings` | Implemented |
+| Text and multimodal embeddings | `VertexClient::embed`, `VertexClient::embed_content` | Implemented |
 | Token counting | `VertexClient::count_tokens`, `count_text_tokens` | Implemented |
 | Multi-turn chat helpers | `ChatConversation`, `chat_with_context`, `stream_chat` | Implemented |
 | Context caching | `VertexClient::cache` | Implemented |
 | Models and locations | `VertexClient::models` | Implemented; see discovery caveat below |
 | Claude on Vertex | `claude_message`, `claude_stream` | Implemented |
+| Gemini Live | `VertexClient::connect_live`, `LiveSession` | Bidirectional WebSocket with JSON messages |
+| Gemini Omni and Lyria 3 | `create_interaction`, `get_interaction` | JSON requests and background result retrieval |
+| Managed Gemma | `chat_completions`, `stream_chat_completions` | OpenAI-compatible JSON requests |
+| Veo, Lyria 2, and Virtual Try-On | `predict`, `predict_long_running`, `fetch_predict_operation` | JSON prediction requests |
 | Command-line applications | `vertex`, `vertex-chat`, `vertex-test` | Optional `cli` feature |
 
 `ModelsApi::get_gemini_models` returns a built-in snapshot; it is not live
@@ -134,6 +138,36 @@ availability in a particular project or region.
 
 The detailed [coverage matrix](docs/api-coverage.md) also lists intentionally
 unsupported Vertex AI product areas.
+
+## Current models
+
+`gemini-3.8-flash` is the default for general-purpose generation. Pass a model
+ID explicitly to use a different Gemini or Claude release.
+
+| Models | Example IDs | SDK entry point |
+| --- | --- | --- |
+| Gemini 4 and Flash | `gemini-4-carbon`, `gemini-4-argon`, `gemini-3.8-flash`, `gemini-3.5-flash-lite` | `generate_content`, `stream_generate_content` |
+| Gemini image and speech | `gemini-nano-banana-2.1`, `gemini-3.8-flash-tts`, `gemini-3.8-flash-lite-tts`, `gemini-3.5-transcribe` | `generate_content` with model-specific `GenerationConfig` |
+| Gemini Live | `gemini-3.8-live` | `connect_live` |
+| Gemini Embedding 2 | `gemini-embedding-2` | `embed` for text, `embed_content` for multimodal input |
+| Video and music | `gemini-omni-1.2-flash`, `lyria-3-pro-preview`, `veo-3.1-generate-001` | `create_interaction` for Omni and Lyria 3, `predict_long_running` for Veo |
+| Claude | `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-haiku-5-5`, `claude-fable-5-2` | `claude_message`, `claude_stream` |
+| Managed Gemma 4 | `google/gemma-4-26b-a4b-it-maas` | `chat_completions`, `stream_chat_completions` |
+
+The SDK also recognizes allowlisted variants such as the Gemini 4 cyber models
+and Claude Mythos 5. Check project access and supported regions before using
+them. See [Google's model catalog](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/google-models)
+and [Anthropic's Google Cloud model reference](https://platform.claude.com/docs/en/build-with-claude/claude-models-on-google-cloud/google-managed).
+
+```bash
+vertex generate --model gemini-4-argon --thinking-level medium "Explain DNS caching"
+vertex-test generate --model claude-sonnet-5-5 --prompt "Explain DNS caching"
+```
+
+Add `--web-search` to `vertex-test generate` or `vertex-test stream` to request
+Claude web search when your Google Cloud organization allows it. For Gemini 4
+and Gemini 3.8 Flash, use `thinking_level` for reasoning control. Those models
+use provider defaults for sampling.
 
 ## Common examples
 

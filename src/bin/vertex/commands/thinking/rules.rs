@@ -1,4 +1,6 @@
-use threatflux_vertex_rust_sdk::{model_descriptor::ModelDescriptor, types::ThinkingLevel};
+use threatflux_vertex_rust_sdk::{
+    get_model_info, model_descriptor::ModelDescriptor, types::ThinkingLevel,
+};
 
 #[derive(Clone, Copy)]
 pub struct GeminiThinkingRules {
@@ -7,7 +9,7 @@ pub struct GeminiThinkingRules {
     pub max_budget: Option<i32>,
     pub allow_disable: bool,
     pub allow_dynamic: bool,
-    pub supports_level: bool,
+    pub levels: &'static [ThinkingLevel],
     pub default_level: Option<ThinkingLevel>,
 }
 
@@ -20,7 +22,7 @@ struct ModelRule {
     max_budget: Option<i32>,
     allow_disable: bool,
     allow_dynamic: bool,
-    supports_level: bool,
+    levels: &'static [ThinkingLevel],
     default_level: Option<ThinkingLevel>,
 }
 
@@ -42,7 +44,7 @@ impl ModelRule {
             max_budget: self.max_budget,
             allow_disable: self.allow_disable,
             allow_dynamic: self.allow_dynamic,
-            supports_level: self.supports_level,
+            levels: self.levels,
             default_level: self.default_level,
         }
     }
@@ -57,7 +59,7 @@ const MODEL_RULES: &[ModelRule] = &[
         max_budget: Some(32_768),
         allow_disable: false,
         allow_dynamic: true,
-        supports_level: false,
+        levels: &[],
         default_level: None,
     },
     ModelRule {
@@ -68,7 +70,7 @@ const MODEL_RULES: &[ModelRule] = &[
         max_budget: Some(24_576),
         allow_disable: true,
         allow_dynamic: true,
-        supports_level: false,
+        levels: &[],
         default_level: None,
     },
     ModelRule {
@@ -79,7 +81,7 @@ const MODEL_RULES: &[ModelRule] = &[
         max_budget: Some(24_576),
         allow_disable: true,
         allow_dynamic: true,
-        supports_level: false,
+        levels: &[],
         default_level: None,
     },
     ModelRule {
@@ -90,7 +92,7 @@ const MODEL_RULES: &[ModelRule] = &[
         max_budget: Some(24_576),
         allow_disable: true,
         allow_dynamic: true,
-        supports_level: false,
+        levels: &[],
         default_level: None,
     },
     ModelRule {
@@ -101,10 +103,52 @@ const MODEL_RULES: &[ModelRule] = &[
         max_budget: None,
         allow_disable: true,
         allow_dynamic: false,
-        supports_level: true,
+        levels: &[ThinkingLevel::Low, ThinkingLevel::High],
         default_level: Some(ThinkingLevel::High),
     },
 ];
+
+const LOW_TO_HIGH: &[ThinkingLevel] =
+    &[ThinkingLevel::Low, ThinkingLevel::Medium, ThinkingLevel::High];
+const ALL_LEVELS: &[ThinkingLevel] =
+    &[ThinkingLevel::Minimal, ThinkingLevel::Low, ThinkingLevel::Medium, ThinkingLevel::High];
+
+fn level_rules(name: &str) -> Option<GeminiThinkingRules> {
+    use ThinkingLevel::{High, Medium, Minimal};
+
+    let info = get_model_info(name)?;
+    let model = info.canonical_id.strip_prefix("publishers/google/models/")?;
+    let (levels, default_level) = match model {
+        "gemini-4-carbon-cyber-permissive"
+        | "gemini-4-argon-cyber-permissive"
+        | "gemini-3.1-pro"
+        | "gemini-3.1-pro-preview"
+        | "gemini-3.1-pro-preview-customtools" => (LOW_TO_HIGH, High),
+        "gemini-4-carbon"
+        | "gemini-4-argon"
+        | "gemini-3.8-flash"
+        | "gemini-3.8-flash-cyber"
+        | "gemini-3.7-flash" => (LOW_TO_HIGH, Medium),
+        "gemini-3.6-flash" | "gemini-3.5-flash" => (ALL_LEVELS, Medium),
+        "gemini-3.5-flash-lite" | "gemini-3.1-flash-lite" | "gemini-3.1-flash-lite-preview" => {
+            (ALL_LEVELS, Minimal)
+        }
+        "gemini-3-flash-preview" | "gemini-robotics-er-2-preview" => (ALL_LEVELS, High),
+        "gemini-nano-banana-2.1" => (&[Minimal, Medium, High][..], Medium),
+        "gemini-3.1-flash-image" | "gemini-3.1-flash-lite-image" => (&[Minimal, High][..], Minimal),
+        "gemini-3-pro-image" => (&[High][..], High),
+        _ => return None,
+    };
+    Some(GeminiThinkingRules {
+        label: info.display_name,
+        min_budget: None,
+        max_budget: None,
+        allow_disable: false,
+        allow_dynamic: false,
+        levels,
+        default_level: Some(default_level),
+    })
+}
 
 pub fn normalized_model_name(model: &str) -> String {
     let normalized = ModelDescriptor::parse(model).map_or_else(
@@ -121,6 +165,9 @@ pub fn normalized_model_name(model: &str) -> String {
 
 pub fn gemini_thinking_rules(model: &str) -> Option<GeminiThinkingRules> {
     let name = normalized_model_name(model);
+    if let Some(rules) = level_rules(&name) {
+        return Some(rules);
+    }
     MODEL_RULES
         .iter()
         .find(|rule| name.starts_with(rule.prefix))
@@ -154,7 +201,7 @@ mod tests {
     #[test]
     fn uses_default_level_for_level_based_models() {
         let rules = gemini_thinking_rules("gemini-3-pro-preview").unwrap();
-        assert!(rules.supports_level);
+        assert_eq!(rules.levels, [ThinkingLevel::Low, ThinkingLevel::High]);
         assert_eq!(rules.default_level, Some(ThinkingLevel::High));
         assert!(!rules.allow_dynamic);
     }

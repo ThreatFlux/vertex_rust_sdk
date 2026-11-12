@@ -12,5 +12,5 @@ pub async fn run(prompt: String, model: String) -> Result<()> {
         "{}",
         "⚠ Function calling not fully implemented yet, falling back to regular generation".yellow()
     );
-    generate::run(Some(prompt), Vec::new(), model).await
+    generate::run(Some(prompt), Vec::new(), model, false).await
 }
