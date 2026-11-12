@@ -172,12 +172,13 @@ mod tests {
         let initial_parts = vec![
             Part::FunctionCall {
                 function_call: FunctionCall {
+                    id: None,
                     name: "get_current_weather".to_string(),
                     args: args.clone(),
                 },
             },
             Part::FunctionCall {
-                function_call: FunctionCall { name: "calculate".to_string(), args },
+                function_call: FunctionCall { id: None, name: "calculate".to_string(), args },
             },
         ];
 

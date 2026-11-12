@@ -4,6 +4,7 @@ use crate::auth::{from_env, AuthProvider};
 use crate::config::{endpoint_for_region, Config, DEFAULT_ANTHROPIC_LOCATION};
 use crate::error::{Result, VertexError};
 use crate::model_descriptor::ModelDescriptor;
+use crate::model_info::{gemini_default_location, get_model_info};
 use crate::models::{
     CountTokensRequest, CountTokensResponse, GenerateContentRequest, GenerateContentResponse,
     StreamingResponse,
@@ -21,6 +22,7 @@ pub struct VertexClient {
     http_client: HttpClient,
     auth_provider: Box<dyn AuthProvider>,
     base_url: String,
+    request_timeout: Duration,
     max_retries: u32,
     publisher_locations: HashMap<String, String>,
     custom_base_url: bool,
@@ -102,8 +104,9 @@ impl VertexClient {
             return Err(VertexError::configuration(err.to_string()));
         }
 
+        let request_timeout = Duration::from_secs(config.timeout_secs);
         let http_client = HttpClient::builder()
-            .timeout(Duration::from_secs(config.timeout_secs))
+            .timeout(request_timeout)
             .user_agent("vertex-rust-sdk/0.1.0")
             .no_proxy()
             .build()
@@ -121,6 +124,7 @@ impl VertexClient {
             http_client,
             auth_provider,
             base_url,
+            request_timeout,
             max_retries: config.max_retries,
             publisher_locations,
             custom_base_url,
@@ -151,12 +155,16 @@ impl VertexClient {
         &self.location
     }
 
+    pub(crate) const fn request_timeout(&self) -> Duration {
+        self.request_timeout
+    }
+
     pub(crate) fn model_request_context(
         &self,
         descriptor: &ModelDescriptor,
     ) -> ModelRequestContext {
-        let location = self.location_for_model(descriptor);
         let model_name = effective_model_name(descriptor);
+        let location = self.location_for_model(descriptor.publisher(), &model_name);
         let relative_path = format!("publishers/{}/models/{}", descriptor.publisher(), model_name);
         let endpoint = self.endpoint_for_location(&location);
         let resource_path =
@@ -171,18 +179,27 @@ impl VertexClient {
         self.model_request_context(descriptor)
     }
 
-    fn location_for_model(&self, descriptor: &ModelDescriptor) -> String {
-        if let Some(location) = model_location_override(descriptor) {
+    fn location_for_model(&self, publisher: &str, model: &str) -> String {
+        let publisher_location = self.publisher_locations.get(publisher);
+        if let Some(location) = publisher_location.filter(|location| {
+            !location.is_empty()
+                && (publisher != "anthropic"
+                    || !location.eq_ignore_ascii_case(DEFAULT_ANTHROPIC_LOCATION))
+        }) {
+            return location.to_ascii_lowercase();
+        }
+        if is_multi_region(&self.location) {
+            return self.location.to_ascii_lowercase();
+        }
+
+        if let Some(location) = model_location_override(publisher, model) {
             return location.to_string();
         }
 
-        self.publisher_locations
-            .get(descriptor.publisher())
-            .cloned()
-            .unwrap_or_else(|| self.location.clone())
+        publisher_location.cloned().unwrap_or_else(|| self.location.clone())
     }
 
-    fn endpoint_for_location(&self, location: &str) -> String {
+    pub(crate) fn endpoint_for_location(&self, location: &str) -> String {
         if self.custom_base_url || location.eq_ignore_ascii_case(self.location()) {
             self.base_url.clone()
         } else {
@@ -312,25 +329,7 @@ impl VertexClient {
         model: &str,
         request: &GenerateContentRequest,
     ) -> Result<GenerateContentResponse> {
-        let descriptor = ModelDescriptor::parse(model)?;
-        let context = self.model_request_context(&descriptor);
-        let path = format!("/v1/{}:generateContent", context.resource_path);
-        let url = self.build_url_for_endpoint(&context.endpoint, &path);
-
-        let response = self.make_authenticated_request(&url, request).await?;
-
-        if response.status().is_success() {
-            let result =
-                response.json::<GenerateContentResponse>().await.map_err(VertexError::Request)?;
-            Ok(result)
-        } else {
-            let status = response.status();
-            let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
-            Err(VertexError::Api {
-                message: format!("Status {status}: {error_text}"),
-                code: status.to_string(),
-            })
-        }
+        self.generate_content_impl(model, request).await
     }
 
     /// Stream generate content
@@ -478,48 +477,56 @@ impl VertexClientBuilder {
     }
 }
 
-fn model_location_override(descriptor: &ModelDescriptor) -> Option<&'static str> {
-    match descriptor.publisher().to_ascii_lowercase().as_str() {
-        "anthropic" => anthropic_global_model(descriptor.model()).then_some("global"),
-        "google" => google_global_model(descriptor.model()).then_some("global"),
+fn model_location_override(publisher: &str, model: &str) -> Option<&'static str> {
+    match publisher.to_ascii_lowercase().as_str() {
+        "anthropic" => anthropic_global_model(model).then_some("global"),
+        "google" => gemini_default_location(model),
         _ => None,
     }
 }
 
-fn effective_model_name(descriptor: &ModelDescriptor) -> String {
-    anthropic_version_override(descriptor).unwrap_or_else(|| descriptor.model().trim().to_string())
-}
-
-fn anthropic_version_override(descriptor: &ModelDescriptor) -> Option<String> {
-    if !descriptor.publisher().eq_ignore_ascii_case("anthropic") {
-        return None;
-    }
-
+pub(crate) fn effective_model_name(descriptor: &ModelDescriptor) -> String {
     let raw_model = descriptor.model().trim();
-    if raw_model.contains('@') {
-        return None;
+    let relative_path = descriptor.relative_path();
+    let publisher_prefix = format!("publishers/{}/models/", descriptor.publisher());
+    let canonical_model = get_model_info(&relative_path)
+        .or_else(|| {
+            (descriptor.publisher() == "anthropic")
+                .then(|| get_model_info(&normalize_model_key(raw_model)))
+                .flatten()
+        })
+        .and_then(|info| info.canonical_id.strip_prefix(&publisher_prefix))
+        .filter(|model| {
+            descriptor.publisher() == "anthropic"
+                || normalize_model_key(model) == normalize_model_key(raw_model)
+        });
+
+    if let Some((_, version)) = raw_model.split_once('@') {
+        return canonical_model
+            .map_or_else(|| raw_model.to_string(), |model| format!("{model}@{version}"));
     }
 
-    match normalize_model_key(raw_model).as_str() {
-        // 4.5 family
-        "claude-sonnet-4-5" | "claude-sonnet-45" | "sonnet-4-5" | "sonnet-45" => {
-            Some(format!("{raw_model}@20250929"))
+    let model = canonical_model.unwrap_or(raw_model);
+    if descriptor.publisher() == "anthropic" {
+        if let Some(version) = anthropic_model_version(model) {
+            return format!("{model}@{version}");
         }
-        "claude-opus-4-5" | "claude-opus-45" | "opus-4-5" | "opus-45" => {
-            Some(format!("{raw_model}@20251101"))
-        }
-        // 4.1 family
-        "claude-opus-4-1" | "claude-opus-41" | "opus-4-1" | "opus-41" => {
-            Some(format!("{raw_model}@20250805"))
-        }
-        // 4.0 family
-        "claude-sonnet-4" | "sonnet-4" | "claude-opus-4" | "opus-4" => {
-            Some(format!("{raw_model}@20250514"))
-        }
-        // 4.6 models use bare IDs — no @date suffix.
-        // All other Anthropic models pass through unchanged.
+    }
+    model.to_string()
+}
+
+fn anthropic_model_version(model: &str) -> Option<&'static str> {
+    match model {
+        "claude-sonnet-4-5" => Some("20250929"),
+        "claude-opus-4-5" => Some("20251101"),
+        "claude-opus-4-1" => Some("20250805"),
+        "claude-sonnet-4" | "claude-opus-4" => Some("20250514"),
         _ => None,
     }
+}
+
+const fn is_multi_region(location: &str) -> bool {
+    location.eq_ignore_ascii_case("us") || location.eq_ignore_ascii_case("eu")
 }
 
 fn anthropic_global_model(model_name: &str) -> bool {
@@ -563,6 +570,14 @@ fn anthropic_global_model(model_name: &str) -> bool {
             | "fable-5"
             | "claude-opus-5"
             | "opus-5"
+            | "claude-sonnet-5-5"
+            | "claude-opus-5-5"
+            | "claude-haiku-5-5"
+            | "claude-fable-5-1"
+            | "claude-fable-5-2"
+            | "claude-mythos-5"
+            | "claude-mythos-5-1"
+            | "claude-mythos-5-2"
             // 4.1 / 4.0 family
             | "claude-opus-4-1"
             | "claude-opus-41"
@@ -572,23 +587,6 @@ fn anthropic_global_model(model_name: &str) -> bool {
             | "sonnet-4"
             | "claude-opus-4"
             | "opus-4"
-    )
-}
-
-fn google_global_model(model_name: &str) -> bool {
-    matches!(
-        normalize_model_key(model_name).as_str(),
-        "gemini-3-pro-preview"
-            | "gemini-3-flash-preview"
-            | "gemini-3-1-pro"
-            | "gemini-3-1-pro-preview"
-            | "gemini-3-1-flash"
-            | "gemini-3-1-flash-preview"
-            | "gemini-3-1-flash-lite"
-            | "gemini-3-1-flash-lite-preview"
-            | "gemini-3-5-flash"
-            | "gemini-3-5-flash-lite"
-            | "gemini-3-6-flash"
     )
 }
 
@@ -773,17 +771,18 @@ mod tests {
     async fn latest_claude_models_and_short_aliases_use_global_location() {
         let client = build_test_client().await;
 
-        for model in [
-            "claude-opus-4-7",
-            "opus-4-7",
-            "claude-opus-4-8",
-            "opus-4-8",
-            "claude-sonnet-5",
-            "sonnet-5",
-            "claude-fable-5",
-            "fable-5",
-            "claude-opus-5",
-            "opus-5",
+        for (model, expected) in [
+            ("claude-opus-4-7", "claude-opus-4-7"),
+            ("opus-4-7", "claude-opus-4-7"),
+            ("opus-4-8", "claude-opus-4-8"),
+            ("sonnet-5", "claude-sonnet-5"),
+            ("fable-5", "claude-fable-5"),
+            ("opus-5", "claude-opus-5"),
+            ("sonnet-5.5", "claude-sonnet-5-5"),
+            ("claude-opus-5-5", "claude-opus-5-5"),
+            ("haiku-55", "claude-haiku-5-5"),
+            ("fable-5.2", "claude-fable-5-2"),
+            ("mythos-5.2", "claude-mythos-5-2"),
         ] {
             let descriptor = ModelDescriptor::parse(model).unwrap();
             let context = client.model_request_context(&descriptor);
@@ -792,10 +791,36 @@ mod tests {
             assert_eq!(
                 context.resource_path,
                 format!(
-                    "projects/test-project/locations/global/publishers/anthropic/models/{model}"
+                    "projects/test-project/locations/global/publishers/anthropic/models/{expected}"
                 )
             );
             assert!(!context.relative_path.contains('@'));
+        }
+    }
+
+    #[tokio::test]
+    async fn current_models_keep_configured_multi_region() {
+        let config = Config {
+            project_id: "test-project".to_string(),
+            region: "eu".to_string(),
+            ..Config::default()
+        };
+        let client =
+            VertexClient::with_config_and_auth_provider(config, Box::new(TestAuthProvider))
+                .await
+                .unwrap();
+        for (input, publisher, id) in [
+            ("gemini-3-8-flash", "google", "gemini-3.8-flash"),
+            ("claude-sonnet-5-5", "anthropic", "claude-sonnet-5-5"),
+            ("gemini-3.8-live", "google", "gemini-3.8-live"),
+        ] {
+            let descriptor = ModelDescriptor::parse(input).unwrap();
+            let context = client.context_for_model(&descriptor);
+            assert_eq!(context.endpoint, "https://aiplatform.eu.rep.googleapis.com");
+            assert_eq!(
+                context.resource_path,
+                format!("projects/test-project/locations/eu/publishers/{publisher}/models/{id}")
+            );
         }
     }
 
@@ -814,8 +839,8 @@ mod tests {
     }
 
     #[test]
-    fn google_global_model_detects_gemini_3_pro_preview() {
-        assert!(google_global_model("gemini-3-pro-preview"));
-        assert!(!google_global_model("gemini-2.5-pro"));
+    fn catalog_detects_legacy_gemini_global_model() {
+        assert_eq!(gemini_default_location("gemini-3-pro-preview"), Some("global"));
+        assert_eq!(gemini_default_location("gemini-2.5-pro"), None);
     }
 }

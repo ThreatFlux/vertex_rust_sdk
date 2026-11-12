@@ -62,19 +62,20 @@ fn executes_function_calls() {
     args.insert("a".to_string(), 2.into());
     args.insert("b".to_string(), 5.into());
 
-    let multiply_call = FunctionCall { name: "multiply".to_string(), args };
+    let multiply_call = FunctionCall { id: None, name: "multiply".to_string(), args };
 
     let response = tools::execute_function_call(&multiply_call);
     assert_eq!(response.name, "multiply");
     assert_eq!(response.response["result"], 10.0);
 
-    let weather_call = FunctionCall { name: "get_weather".to_string(), args: HashMap::new() };
+    let weather_call =
+        FunctionCall { id: None, name: "get_weather".to_string(), args: HashMap::new() };
 
     let weather_response = tools::execute_function_call(&weather_call);
     assert_eq!(weather_response.name, "get_weather");
     assert_eq!(weather_response.response["condition"], "Sunny");
 
-    let unknown_call = FunctionCall { name: "missing".to_string(), args: HashMap::new() };
+    let unknown_call = FunctionCall { id: None, name: "missing".to_string(), args: HashMap::new() };
     let unknown_response = tools::execute_function_call(&unknown_call);
     assert_eq!(unknown_response.response["error"], "Unknown function: missing");
 }
@@ -91,6 +92,7 @@ fn conversation_builds_requests() {
     conversation.add_candidate(&candidate);
 
     let function_response = tools::execute_function_call(&FunctionCall {
+        id: None,
         name: "multiply".to_string(),
         args: HashMap::new(),
     });
@@ -131,6 +133,7 @@ async fn run_demo_processes_function_calls() {
                 role: "model".to_string(),
                 parts: vec![Part::FunctionCall {
                     function_call: FunctionCall {
+                        id: None,
                         name: "multiply".to_string(),
                         args: HashMap::from([
                             ("a".to_string(), 3.into()),

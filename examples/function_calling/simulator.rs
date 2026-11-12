@@ -10,7 +10,7 @@ pub fn simulate(function_call: &FunctionCall) -> FunctionResponse {
         _ => json!({"error": format!("Unknown function: {}", function_call.name)}),
     };
 
-    FunctionResponse { name: function_call.name.clone(), response: payload }
+    FunctionResponse::for_call(function_call, payload)
 }
 
 fn simulate_weather(args: &HashMap<String, Value>) -> Value {
@@ -64,6 +64,7 @@ mod tests {
 
     fn build_call(name: &str, args: &[(&str, Value)]) -> FunctionCall {
         FunctionCall {
+            id: None,
             name: name.to_string(),
             args: args.iter().map(|(k, v)| (k.to_string(), v.clone())).collect(),
         }

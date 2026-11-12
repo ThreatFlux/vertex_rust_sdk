@@ -186,7 +186,7 @@ pub fn aggregate_stream_text(response: &StreamingResponse) -> String {
 
     if let Some(candidate) = response.candidates.first() {
         for part in &candidate.content.parts {
-            if let Part::Text { text } = part {
+            if let Some(text) = part.as_text() {
                 aggregated.push_str(text);
             }
         }

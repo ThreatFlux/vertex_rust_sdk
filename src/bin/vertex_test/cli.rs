@@ -1,4 +1,6 @@
 use crate::vertex_test::attachments::InputFileArg;
+use threatflux_vertex_rust_sdk::config::DEFAULT_MODEL;
+
 use clap::{Parser, Subcommand};
 
 /// Vertex AI SDK Test CLI
@@ -30,8 +32,12 @@ pub enum Commands {
         prompt: Option<String>,
 
         /// Model to use
-        #[arg(short, long, default_value = "gemini-3-pro-preview")]
+        #[arg(short, long, default_value = DEFAULT_MODEL)]
         model: String,
+
+        /// Enable Claude web search for this request
+        #[arg(long)]
+        web_search: bool,
 
         /// Positional prompt words
         #[arg(value_name = "PROMPT", trailing_var_arg = true)]
@@ -45,8 +51,12 @@ pub enum Commands {
         prompt: String,
 
         /// Model to use
-        #[arg(short, long, default_value = "gemini-3-pro-preview")]
+        #[arg(short, long, default_value = DEFAULT_MODEL)]
         model: String,
+
+        /// Enable Claude web search for this request
+        #[arg(long)]
+        web_search: bool,
 
         /// Attach a local file as inline data (use PATH or `PATH::MIME_TYPE`)
         #[arg(long = "input-file", value_name = "PATH[::MIME]", action = clap::ArgAction::Append)]
@@ -60,14 +70,14 @@ pub enum Commands {
         prompt: String,
 
         /// Model to use
-        #[arg(short, long, default_value = "gemini-3-pro-preview")]
+        #[arg(short, long, default_value = DEFAULT_MODEL)]
         model: String,
     },
 
     /// Run all tests
     All {
         /// Model to use
-        #[arg(short, long, default_value = "gemini-3-pro-preview")]
+        #[arg(short, long, default_value = DEFAULT_MODEL)]
         model: String,
     },
 
@@ -113,7 +123,7 @@ mod tests {
 
         let generate = Cli::parse_from(["vertex-test", "generate"]);
         if let Commands::Generate { model, .. } = generate.command {
-            assert_eq!(model, "gemini-3-pro-preview");
+            assert_eq!(model, DEFAULT_MODEL);
         } else {
             panic!("expected generate command");
         }
@@ -121,7 +131,7 @@ mod tests {
         let stream = Cli::parse_from(["vertex-test", "stream"]);
         if let Commands::Stream { prompt, model, .. } = stream.command {
             assert_eq!(prompt, "Write a short story about AI");
-            assert_eq!(model, "gemini-3-pro-preview");
+            assert_eq!(model, DEFAULT_MODEL);
         } else {
             panic!("expected stream command");
         }

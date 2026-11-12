@@ -1,13 +1,15 @@
 //! Streaming content generation API
 
+use super::generate::{generation_api_version, prepare_generation_request, SegmentRequest};
 use crate::client::VertexClient;
 use crate::error::{Result, VertexError};
 use crate::model_descriptor::ModelDescriptor;
-use crate::models::{GenerateContentRequest, StreamingResponse};
-use crate::streaming::SseParser;
-use crate::streaming_support::SseStreamState;
+use crate::models::{GenerateContentRequest, GenerateContentSegment, StreamingResponse};
+use crate::streaming::{SegmentSseParser, SseParser};
+use crate::streaming_support::{SsePayloadParser, SseStreamState};
 use futures_util::stream::{self, Stream, TryStreamExt};
 use reqwest::header;
+use serde::Serialize;
 use std::pin::Pin;
 
 impl VertexClient {
@@ -67,7 +69,49 @@ impl VertexClient {
         model: &str,
         request: &GenerateContentRequest,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamingResponse>> + Send>>> {
-        let url = self.build_stream_url(model)?;
+        let descriptor = ModelDescriptor::parse(model)?;
+        let request = prepare_generation_request(&descriptor, request)?;
+        let version = generation_api_version(&descriptor);
+        self.stream_generation(&descriptor, version, request.as_ref(), SseParser::new()).await
+    }
+
+    /// Stream one segment of a Gemini 4 long decode using the v1beta1 API.
+    ///
+    /// Set `max_output_tokens` to the desired total across all segments. Use
+    /// `None` for the first segment. Pass the token from a continuation chunk
+    /// with the original request to get the next segment.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the request fails or a streamed chunk cannot be decoded.
+    pub async fn stream_generate_content_segment(
+        &self,
+        model: &str,
+        request: &GenerateContentRequest,
+        continuation_token: Option<&str>,
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<GenerateContentSegment<StreamingResponse>>> + Send>>>
+    {
+        let descriptor = ModelDescriptor::parse(model)?;
+        let request = prepare_generation_request(&descriptor, request)?;
+        let segment = SegmentRequest { request: request.as_ref(), continuation_token };
+        self.stream_generation(&descriptor, "v1beta1", &segment, SegmentSseParser).await
+    }
+
+    async fn stream_generation<P, R, T>(
+        &self,
+        descriptor: &ModelDescriptor,
+        version: &str,
+        request: &R,
+        parser: P,
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<T>> + Send>>>
+    where
+        P: SsePayloadParser<T> + Send + 'static,
+        R: Serialize + Sync,
+        T: Send + 'static,
+    {
+        let context = self.model_request_context(descriptor);
+        let path = format!("/{version}/{}:streamGenerateContent?alt=sse", context.resource_path);
+        let url = self.build_url_for_endpoint(&context.endpoint, &path);
 
         let response = self
             .send_with_retry(|| {
@@ -97,7 +141,7 @@ impl VertexClient {
         }
 
         let byte_stream = response.bytes_stream();
-        let state = SseStreamState::new(Box::pin(byte_stream), SseParser::new());
+        let state = SseStreamState::new(Box::pin(byte_stream), parser);
 
         let stream = stream::try_unfold(state, |mut state| async move {
             loop {
@@ -116,19 +160,6 @@ impl VertexClient {
         .into_stream();
 
         Ok(Box::pin(stream))
-    }
-
-    /// Build the URL for streaming content generation
-    ///
-    /// # Errors
-    ///
-    /// Returns an error when the model identifier cannot be parsed into a valid
-    /// endpoint and resource path.
-    fn build_stream_url(&self, model: &str) -> Result<String> {
-        let descriptor = ModelDescriptor::parse(model)?;
-        let context = self.model_request_context(&descriptor);
-        let path = format!("/v1/{}:streamGenerateContent?alt=sse", context.resource_path);
-        Ok(self.build_url_for_endpoint(&context.endpoint, &path))
     }
 }
 

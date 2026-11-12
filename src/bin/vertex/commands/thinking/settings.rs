@@ -57,7 +57,10 @@ fn validate_known_model(
     budget: Option<i32>,
     level: Option<ThinkingLevel>,
 ) -> Result<ThinkingSettings> {
-    if rules.supports_level {
+    if !rules.levels.is_empty() {
+        if budget.is_some() {
+            bail!("{} only supports thinkingLevel; remove thinkingBudget", rules.label);
+        }
         return level_for_rule(rules, level);
     }
 
@@ -122,23 +125,17 @@ fn level_for_rule(
     rules: GeminiThinkingRules,
     level: Option<ThinkingLevel>,
 ) -> Result<ThinkingSettings> {
-    if level.is_some() {
-        return Ok(ThinkingSettings {
-            enabled: true,
-            thinking_budget: None,
-            thinking_level: level,
-        });
+    if let Some(level) = level {
+        if !rules.levels.contains(&level) {
+            bail!("{} does not support thinkingLevel {level:?}", rules.label);
+        }
     }
 
-    if let Some(default) = rules.default_level {
-        return Ok(ThinkingSettings {
-            enabled: true,
-            thinking_budget: None,
-            thinking_level: Some(default),
-        });
-    }
-
-    bail!("{} only supports thinkingLevel; remove thinkingBudget", rules.label)
+    Ok(ThinkingSettings {
+        enabled: true,
+        thinking_budget: None,
+        thinking_level: level.or(rules.default_level),
+    })
 }
 
 #[cfg(test)]

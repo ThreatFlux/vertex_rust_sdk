@@ -191,6 +191,7 @@ fn test_generate_content_request_for_streaming() {
             response_mime_type: None,
             response_schema: None,
             thinking_config: None,
+            ..GenerationConfig::model_defaults()
         }),
         safety_settings: None,
         tools: None,

@@ -111,7 +111,7 @@ The first set variable wins:
 
 | Variable | Default | Implemented behavior |
 | --- | --- | --- |
-| `VERTEX_MODEL` | `gemini-1.5-flash` | Stored in `Config::model`; operations still receive a model argument explicitly |
+| `VERTEX_MODEL` | `gemini-3.8-flash` | Stored in `Config::model`; operations still receive a model argument explicitly |
 | `VERTEX_API_VERSION` | `v1` | Accepted values are `v1` and `v1beta1`; individual API methods currently choose their endpoint version in code |
 | `VERTEX_TIMEOUT` | `60` | Whole-client request timeout in seconds; invalid values fall back to 60 |
 | `VERTEX_MAX_RETRIES` | `3` | Additional attempts for selected HTTP responses; invalid values fall back to 3 |
@@ -158,8 +158,11 @@ model-specific rule applies. `publisher_locations` can map publisher names to
 other locations. The SDK inserts an Anthropic default and supports the two
 Anthropic environment overrides above.
 
-Some recognized model families have model-specific routing or version rules in
-the client. Use `VertexClient::context_for_model` with a `ModelDescriptor` to
+Explicit publisher locations and the `us` and `eu` multi-regions take precedence
+over model defaults. An explicit `us-east5` for Anthropic uses the same routing
+as the built-in Anthropic default. The SDK uses the `aiplatform.us.rep.googleapis.com`
+and `aiplatform.eu.rep.googleapis.com` hosts for multi-region requests. Some
+recognized model IDs also have version rules. Use `VertexClient::context_for_model` with a `ModelDescriptor` to
 inspect the endpoint and resource path the SDK will use before making a request.
 Do not derive current provider availability from these routing rules.
 

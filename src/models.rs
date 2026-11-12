@@ -5,7 +5,7 @@ use crate::types::{
     FunctionCallingConfig, GenerationConfig, GroundingChunk, GroundingConfig, GroundingMetadata,
     GroundingSupport, Part, RequestMetadata, SafetySetting, Tool, ToolConfig, UsageMetadata,
 };
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 // Re-export models API types for convenience
 pub use crate::api::models::{
@@ -205,8 +205,29 @@ impl GenerateContentRequest {
     }
 }
 
+/// A Gemini 4 generation segment returned by the v1beta1 continuation API.
+#[derive(Debug, Clone)]
+pub struct GenerateContentSegment<T> {
+    /// Normal generation response or streaming chunk for this segment.
+    pub response: T,
+    /// Opaque token for the next segment, when generation can continue.
+    pub continuation_token: Option<String>,
+}
+
+impl<'de, T: DeserializeOwned> Deserialize<'de> for GenerateContentSegment<T> {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let value = serde_json::Value::deserialize(deserializer)?;
+        let continuation_token =
+            value.pointer("/candidates/0/continuationToken").and_then(serde_json::Value::as_str);
+        let continuation_token = continuation_token.map(str::to_owned);
+        let response = serde_json::from_value(value).map_err(serde::de::Error::custom)?;
+        Ok(Self { response, continuation_token })
+    }
+}
+
 /// Response from generate content
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(try_from = "GenerationResponseWire")]
 pub struct GenerateContentResponse {
     /// Generated candidates
     pub candidates: Vec<Candidate>,
@@ -220,18 +241,40 @@ pub struct GenerateContentResponse {
     pub grounding_metadata: Option<GroundingMetadata>,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GenerationResponseWire {
+    candidates: Option<Vec<Candidate>>,
+    usage_metadata: Option<UsageMetadata>,
+    grounding_metadata: Option<GroundingMetadata>,
+    prompt_feedback: Option<serde::de::IgnoredAny>,
+}
+
+impl TryFrom<GenerationResponseWire> for GenerateContentResponse {
+    type Error = &'static str;
+
+    fn try_from(wire: GenerationResponseWire) -> Result<Self, Self::Error> {
+        if wire.candidates.is_none()
+            && wire.usage_metadata.is_none()
+            && wire.grounding_metadata.is_none()
+            && wire.prompt_feedback.is_none()
+        {
+            return Err("missing content generation response fields");
+        }
+        Ok(Self {
+            candidates: wire.candidates.unwrap_or_default(),
+            usage_metadata: wire.usage_metadata,
+            grounding_metadata: wire.grounding_metadata,
+        })
+    }
+}
+
 impl GenerateContentResponse {
     /// Get the text from the first candidate, if available
     #[must_use]
     pub fn text(&self) -> Option<String> {
         self.candidates.first().and_then(|candidate| {
-            candidate.content.parts.iter().find_map(|part| {
-                if let Part::Text { text } = part {
-                    Some(text.clone())
-                } else {
-                    None
-                }
-            })
+            candidate.content.parts.iter().find_map(Part::as_text).map(str::to_owned)
         })
     }
 
@@ -282,18 +325,7 @@ impl GenerateContentResponse {
         self.candidates
             .first()
             .map(|candidate| {
-                candidate
-                    .content
-                    .parts
-                    .iter()
-                    .filter_map(|part| {
-                        if let Part::FunctionCall { function_call } = part {
-                            Some(function_call.clone())
-                        } else {
-                            None
-                        }
-                    })
-                    .collect()
+                candidate.content.parts.iter().filter_map(Part::as_function_call).cloned().collect()
             })
             .unwrap_or_default()
     }
@@ -309,7 +341,7 @@ impl GenerateContentResponse {
                     .parts
                     .iter()
                     .filter_map(|part| {
-                        if let Part::ExecutableCode { executable_code } = part {
+                        if let Some(Part::ExecutableCode { executable_code }) = part.payload() {
                             Some(executable_code.clone())
                         } else {
                             None
@@ -331,7 +363,9 @@ impl GenerateContentResponse {
                     .parts
                     .iter()
                     .filter_map(|part| {
-                        if let Part::CodeExecutionResult { code_execution_result } = part {
+                        if let Some(Part::CodeExecutionResult { code_execution_result }) =
+                            part.payload()
+                        {
                             Some(code_execution_result.clone())
                         } else {
                             None
@@ -358,13 +392,8 @@ impl GenerateContentResponse {
                     .content
                     .parts
                     .iter()
-                    .filter_map(|part| {
-                        if let Part::Thinking { thought } = part {
-                            Some(thought.clone())
-                        } else {
-                            None
-                        }
-                    })
+                    .filter_map(Part::as_thinking)
+                    .map(str::to_owned)
                     .collect()
             })
             .unwrap_or_default()
@@ -380,7 +409,7 @@ impl GenerateContentResponse {
     #[must_use]
     pub fn has_thinking(&self) -> bool {
         self.candidates.first().is_some_and(|candidate| {
-            candidate.content.parts.iter().any(|part| matches!(part, Part::Thinking { .. }))
+            candidate.content.parts.iter().any(|part| part.as_thinking().is_some())
         })
     }
 
@@ -388,13 +417,7 @@ impl GenerateContentResponse {
     #[must_use]
     pub fn text_without_thinking(&self) -> Option<String> {
         self.candidates.first().and_then(|candidate| {
-            candidate.content.parts.iter().find_map(|part| {
-                if let Part::Text { text } = part {
-                    Some(text.clone())
-                } else {
-                    None
-                }
-            })
+            candidate.content.parts.iter().find_map(Part::as_text).map(str::to_owned)
         })
     }
 
@@ -404,32 +427,11 @@ impl GenerateContentResponse {
         let mut response = String::new();
 
         if let Some(candidate) = self.candidates.first() {
-            let thinking_parts: Vec<_> = candidate
-                .content
-                .parts
-                .iter()
-                .filter_map(|part| {
-                    if let Part::Thinking { thought } = part {
-                        Some(thought.as_str())
-                    } else {
-                        None
-                    }
-                })
-                .collect();
+            let thinking_parts: Vec<_> =
+                candidate.content.parts.iter().filter_map(Part::as_thinking).collect();
 
             let text_parts: Vec<_> =
-                candidate
-                    .content
-                    .parts
-                    .iter()
-                    .filter_map(|part| {
-                        if let Part::Text { text } = part {
-                            Some(text.as_str())
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
+                candidate.content.parts.iter().filter_map(Part::as_text).collect();
 
             if !thinking_parts.is_empty() {
                 response.push_str("--- THINKING ---\n");
@@ -524,6 +526,7 @@ pub struct CountTokensResponse {
 
 /// Streaming response chunk
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(try_from = "GenerationResponseWire")]
 pub struct StreamingResponse {
     /// Generated candidates
     pub candidates: Vec<Candidate>,
@@ -537,18 +540,22 @@ pub struct StreamingResponse {
     pub grounding_metadata: Option<GroundingMetadata>,
 }
 
+impl TryFrom<GenerationResponseWire> for StreamingResponse {
+    type Error = &'static str;
+
+    fn try_from(wire: GenerationResponseWire) -> Result<Self, Self::Error> {
+        let GenerateContentResponse { candidates, usage_metadata, grounding_metadata } =
+            GenerateContentResponse::try_from(wire)?;
+        Ok(Self { candidates, usage_metadata, grounding_metadata })
+    }
+}
+
 impl StreamingResponse {
     /// Get the text from the first candidate, if available
     #[must_use]
     pub fn text(&self) -> Option<String> {
         self.candidates.first().and_then(|candidate| {
-            candidate.content.parts.iter().find_map(|part| {
-                if let Part::Text { text } = part {
-                    Some(text.clone())
-                } else {
-                    None
-                }
-            })
+            candidate.content.parts.iter().find_map(Part::as_text).map(str::to_owned)
         })
     }
 
@@ -563,7 +570,7 @@ impl StreamingResponse {
                     .parts
                     .iter()
                     .filter_map(|part| {
-                        if let Part::ExecutableCode { executable_code } = part {
+                        if let Some(Part::ExecutableCode { executable_code }) = part.payload() {
                             Some(executable_code.clone())
                         } else {
                             None
@@ -585,7 +592,9 @@ impl StreamingResponse {
                     .parts
                     .iter()
                     .filter_map(|part| {
-                        if let Part::CodeExecutionResult { code_execution_result } = part {
+                        if let Some(Part::CodeExecutionResult { code_execution_result }) =
+                            part.payload()
+                        {
                             Some(code_execution_result.clone())
                         } else {
                             None
@@ -612,13 +621,8 @@ impl StreamingResponse {
                     .content
                     .parts
                     .iter()
-                    .filter_map(|part| {
-                        if let Part::Thinking { thought } = part {
-                            Some(thought.clone())
-                        } else {
-                            None
-                        }
-                    })
+                    .filter_map(Part::as_thinking)
+                    .map(str::to_owned)
                     .collect()
             })
             .unwrap_or_default()
@@ -634,7 +638,7 @@ impl StreamingResponse {
     #[must_use]
     pub fn has_thinking(&self) -> bool {
         self.candidates.first().is_some_and(|candidate| {
-            candidate.content.parts.iter().any(|part| matches!(part, Part::Thinking { .. }))
+            candidate.content.parts.iter().any(|part| part.as_thinking().is_some())
         })
     }
 

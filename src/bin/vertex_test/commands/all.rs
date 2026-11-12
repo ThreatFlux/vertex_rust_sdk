@@ -20,17 +20,17 @@ pub async fn run(model: String) -> Result<()> {
         Some("What is 2+2? Give a very short answer.".to_string()),
         Vec::new(),
         model.clone(),
+        false,
     )
     .await?;
     sleep(Duration::from_secs(1)).await;
 
     println!("\n{}", "[4/5] Streaming Generation Test".bold());
-    stream::run("Count from 1 to 10 slowly".to_string(), model.clone(), Vec::new()).await?;
+    stream::run("Count from 1 to 10 slowly".to_string(), model.clone(), Vec::new(), false).await?;
     sleep(Duration::from_secs(1)).await;
 
     println!("\n{}", "[5/5] Function Calling Test".bold());
-    function_call::run("What's the weather in Tokyo?".to_string(), model.replace("flash", "pro"))
-        .await?;
+    function_call::run("What's the weather in Tokyo?".to_string(), model).await?;
 
     println!("\n{}", "=".repeat(50).green());
     println!("{}", "All tests completed successfully!".bold().green());

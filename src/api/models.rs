@@ -3,6 +3,7 @@
 use crate::client::VertexClient;
 use crate::error::{ApiError, Result, VertexError};
 use crate::model_descriptor::ModelDescriptor;
+use crate::model_info::GEMINI_MODELS;
 use serde::{Deserialize, Serialize};
 
 /// Model information
@@ -276,91 +277,41 @@ impl<'a> ModelsApi<'a> {
         Ok(filtered_models)
     }
 
-    /// Get the latest Gemini models (hardcoded list for now)
+    /// Return the built-in Gemini catalog and its supported SDK methods.
+    ///
+    /// Model access depends on the project and location. The catalog includes
+    /// preview and restricted models.
     ///
     /// # Errors
     ///
-    /// This function currently never returns an error and always yields the
-    /// built-in list of Gemini models.
+    /// This function never returns an error.
     // Preserve the established async API even when the implementation is synchronous.
     #[allow(clippy::unused_async, clippy::unused_async_trait_impl)]
     pub async fn get_gemini_models(&self) -> Result<Vec<Model>> {
-        // For now, return a hardcoded list of known Gemini models
-        // since the list API doesn't return them
-        let gemini_models = vec![
-            Model {
-                name: "publishers/google/models/gemini-2.5-flash".to_string(),
-                display_name: Some("Gemini 2.5 Flash".to_string()),
-                description: Some(
-                    "Best model for price and performance with thinking capabilities".to_string(),
-                ),
-                version: Some("gemini-2.5-flash".to_string()),
-                supported_generation_methods: vec![
-                    "generateContent".to_string(),
-                    "streamGenerateContent".to_string(),
-                    "countTokens".to_string(),
-                ],
-                input_token_limit: Some(1_048_576),
-                output_token_limit: Some(65_535),
+        Ok(GEMINI_MODELS
+            .iter()
+            .filter(|entry| !entry.methods.is_empty())
+            .map(|entry| Model {
+                name: entry.info.canonical_id.to_string(),
+                display_name: Some(entry.info.display_name.to_string()),
+                description: None,
+                version: Some(entry.id.to_string()),
+                supported_generation_methods: entry
+                    .methods
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect(),
+                input_token_limit: entry
+                    .info
+                    .context_window_tokens
+                    .and_then(|limit| i64::try_from(limit).ok()),
+                output_token_limit: entry.info.max_output_tokens.map(i64::from),
                 supported_languages: None,
                 temperature: None,
                 top_p: None,
                 top_k: None,
-            },
-            Model {
-                name: "publishers/google/models/gemini-2.5-pro".to_string(),
-                display_name: Some("Gemini 2.5 Pro".to_string()),
-                description: Some("Most advanced reasoning model for complex problems".to_string()),
-                version: Some("gemini-2.5-pro".to_string()),
-                supported_generation_methods: vec![
-                    "generateContent".to_string(),
-                    "streamGenerateContent".to_string(),
-                    "countTokens".to_string(),
-                ],
-                input_token_limit: Some(1_048_576),
-                output_token_limit: Some(65_535),
-                supported_languages: None,
-                temperature: None,
-                top_p: None,
-                top_k: None,
-            },
-            Model {
-                name: "publishers/google/models/gemini-2.5-flash-lite".to_string(),
-                display_name: Some("Gemini 2.5 Flash-Lite".to_string()),
-                description: Some("Balanced model optimized for low latency".to_string()),
-                version: Some("gemini-2.5-flash-lite".to_string()),
-                supported_generation_methods: vec![
-                    "generateContent".to_string(),
-                    "streamGenerateContent".to_string(),
-                    "countTokens".to_string(),
-                ],
-                input_token_limit: Some(1_048_576),
-                output_token_limit: Some(65_535),
-                supported_languages: None,
-                temperature: None,
-                top_p: None,
-                top_k: None,
-            },
-            Model {
-                name: "publishers/google/models/gemini-1.5-flash-001".to_string(),
-                display_name: Some("Gemini 1.5 Flash".to_string()),
-                description: Some("Fast multimodal model".to_string()),
-                version: Some("001".to_string()),
-                supported_generation_methods: vec![
-                    "generateContent".to_string(),
-                    "streamGenerateContent".to_string(),
-                    "countTokens".to_string(),
-                ],
-                input_token_limit: Some(1_048_576),
-                output_token_limit: Some(65_535),
-                supported_languages: None,
-                temperature: None,
-                top_p: None,
-                top_k: None,
-            },
-        ];
-
-        Ok(gemini_models)
+            })
+            .collect())
     }
 }
 
@@ -569,6 +520,26 @@ mod tests {
         VertexClient::with_config_and_auth_provider(config, Box::new(TestAuthProvider))
             .await
             .expect("vertex client")
+    }
+
+    #[tokio::test]
+    #[allow(clippy::significant_drop_tightening)]
+    async fn builtin_gemini_catalog_lists_model_specific_methods() {
+        let server = Server::new_async().await;
+        let client = client_for_server(&server).await;
+        let models = client.models().get_gemini_models().await.unwrap();
+        let find_model = |id| models.iter().find(|model| model.short_name() == id).unwrap();
+
+        let argon = find_model("gemini-4-argon");
+        assert_eq!(argon.input_token_limit, Some(1_048_576));
+        assert!(argon.supports_method("generateContent"));
+        assert!(argon.supports_method("interactions"));
+
+        let omni = find_model("gemini-omni-1.2-flash");
+        assert!(omni.supports_method("interactions"));
+        assert!(!omni.supports_method("generateContent"));
+        assert!(find_model("gemini-3.8-live").supports_method("BidiGenerateContent"));
+        assert!(find_model("gemini-embedding-2").supports_method("embedContent"));
     }
 
     #[tokio::test]

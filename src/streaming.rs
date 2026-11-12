@@ -1,9 +1,10 @@
 //! Server-Sent Events (SSE) streaming support
 
 use crate::error::{Result, VertexError};
-use crate::models::StreamingResponse;
+use crate::models::{GenerateContentSegment, StreamingResponse};
 use crate::streaming_support::SsePayloadParser;
 use futures_util::stream::{Stream, StreamExt};
+use serde::de::DeserializeOwned;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
@@ -34,6 +35,10 @@ impl SseParser {
     /// data: {"candidates":[{"content":{"role":"model","parts":[{"text":"!"}]},"finishReason":"STOP","index":0}],"usageMetadata":{"promptTokenCount":2,"candidatesTokenCount":3,"totalTokenCount":5}}
     /// ```
     pub fn parse_chunk(&self, text: &str) -> Result<Option<StreamingResponse>> {
+        Self::parse_response(text)
+    }
+
+    fn parse_response<T: DeserializeOwned>(text: &str) -> Result<Option<T>> {
         let mut data_payload = String::new();
 
         // Process each line in the chunk and gather data payload
@@ -70,7 +75,7 @@ impl SseParser {
         }
 
         // Try to parse as JSON
-        match serde_json::from_str::<StreamingResponse>(&data_payload) {
+        match serde_json::from_str::<T>(&data_payload) {
             Ok(response) => Ok(Some(response)),
             Err(e) => {
                 // Log the problematic data for debugging
@@ -78,6 +83,14 @@ impl SseParser {
                 Err(VertexError::streaming(format!("Failed to parse streaming response: {e}")))
             }
         }
+    }
+}
+
+pub(crate) struct SegmentSseParser;
+
+impl SsePayloadParser<GenerateContentSegment<StreamingResponse>> for SegmentSseParser {
+    fn parse(&self, payload: &str) -> Result<Option<GenerateContentSegment<StreamingResponse>>> {
+        SseParser::parse_response(payload)
     }
 }
 

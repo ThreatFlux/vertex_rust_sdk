@@ -11,8 +11,10 @@ mod usage;
 pub use code_execution::{
     CodeExecutionResult, CodeExecutionTool, ExecutableCode, Language, Outcome,
 };
-pub use config::{GenerationConfig, ThinkingConfig, ThinkingLevel};
-pub use content::{Content, FileData, InlineData, Part, ThinkingPart};
+pub use config::{GenerationConfig, ResponseModality, ThinkingConfig, ThinkingLevel};
+pub use content::{
+    AnnotatedPart, Content, FileData, InlineData, Part, SpeechMetadata, ThinkingPart,
+};
 pub use function_calling::{FunctionCall, FunctionDeclaration, FunctionResponse};
 pub use grounding::{
     GroundingChunk, GroundingConfig, GroundingMetadata, GroundingSupport, SearchEntryPoint,

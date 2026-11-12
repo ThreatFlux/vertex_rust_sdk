@@ -58,10 +58,12 @@ pub mod types;
 // Re-export main types for convenience
 pub use api::chat::ChatConversation;
 pub use api::embeddings::{
-    EmbeddingInstance, EmbeddingParameters, EmbeddingPrediction, EmbeddingRequest,
-    EmbeddingResponse, EmbeddingTaskType, EmbeddingValues, EmbeddingsApi,
+    EmbedContentConfig, EmbedContentRequest, EmbeddingInstance, EmbeddingParameters,
+    EmbeddingPrediction, EmbeddingRequest, EmbeddingResponse, EmbeddingTaskType, EmbeddingValues,
+    EmbeddingsApi,
 };
 pub use api::generate::GenerateApi;
+pub use api::live::LiveSession;
 pub use api::models::{ListLocationsResponse, ListModelsResponse, Location, Model, ModelsApi};
 pub use auth::{
     from_env, ApplicationDefaultCredentials, AuthProvider, EnvAuth, ServiceAccountAuth,

@@ -2,9 +2,7 @@ use anyhow::Result;
 use colored::Colorize;
 use serde_json::to_string_pretty;
 use threatflux_vertex_rust_sdk::models::GenerateContentResponse;
-use threatflux_vertex_rust_sdk::types::{
-    Candidate, FunctionCall, FunctionResponse, Part, UsageMetadata,
-};
+use threatflux_vertex_rust_sdk::types::{Candidate, FunctionCall, FunctionResponse, UsageMetadata};
 
 pub trait OutputSink {
     fn line(&mut self, line: impl Into<String>);
@@ -93,7 +91,7 @@ pub fn print_candidate_function_calls(
     label: &str,
 ) {
     for part in &candidate.content.parts {
-        if let Part::FunctionCall { function_call } = part {
+        if let Some(function_call) = part.as_function_call() {
             sink.line(format!("\n{} {label}: {}", "🔧".blue(), function_call.name.bold()));
         }
     }
