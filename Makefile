@@ -3,7 +3,7 @@
 
 CARGO ?= cargo
 RUST_MSRV ?= 1.96.0
-RUST_TOOLCHAIN ?= 1.99.1
+RUST_TOOLCHAIN ?= 1.100.0
 CARGO_AUDIT_VERSION := 0.23.0
 CARGO_DENY_VERSION := 0.20.2
 CARGO_HACK_VERSION := 0.6.46
@@ -29,7 +29,7 @@ CLIPPY_CI_FLAGS := -D warnings \
 	-A clippy::missing_panics_doc \
 	-A clippy::must_use_candidate
 
-CLIPPY_FLAGS := $(CLIPPY_CI_FLAGS) -D clippy::cargo
+CLIPPY_FLAGS := -D clippy::cargo $(CLIPPY_CI_FLAGS)
 
 RED := \033[0;31m
 GREEN := \033[0;32m
