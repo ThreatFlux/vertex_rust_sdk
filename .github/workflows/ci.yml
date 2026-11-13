@@ -106,6 +106,8 @@ jobs:
             rust: stable
     continue-on-error: ${{ matrix.rust == 'nightly' }}
 
+    env:
+      RUSTUP_TOOLCHAIN: ${{ matrix.rust == 'stable' && '1.100.0' || matrix.rust }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -115,7 +117,20 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
         with:
-          toolchain: ${{ matrix.rust }}
+          toolchain: ${{ env.RUSTUP_TOOLCHAIN }}
+
+      - name: Verify selected compiler
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustc --version --verbose
+          cargo --version
+          actual=$(rustc --version | cut -d ' ' -f 2)
+          case "$RUSTUP_TOOLCHAIN" in
+            beta) [[ "$actual" == *-beta* ]] ;;
+            nightly) [[ "$actual" == *-nightly* ]] ;;
+            *) test "$actual" = "$RUSTUP_TOOLCHAIN" ;;
+          esac
 
       - name: Install dependencies (Ubuntu)
         if: matrix.os == 'linux'
@@ -155,6 +170,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    env:
+      RUSTUP_TOOLCHAIN: 1.96.0
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -164,7 +181,20 @@ jobs:
       - name: Install MSRV toolchain
         uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
         with:
-          toolchain: ${{ env.RUST_MSRV_VERSION }}
+          toolchain: ${{ env.RUSTUP_TOOLCHAIN }}
+
+      - name: Verify selected MSRV compiler
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustc --version --verbose
+          cargo --version
+          actual=$(rustc --version | cut -d ' ' -f 2)
+          case "$RUSTUP_TOOLCHAIN" in
+            beta) [[ "$actual" == *-beta* ]] ;;
+            nightly) [[ "$actual" == *-nightly* ]] ;;
+            *) test "$actual" = "$RUSTUP_TOOLCHAIN" ;;
+          esac
 
       - name: Cache cargo
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
