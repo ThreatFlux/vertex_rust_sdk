@@ -29,7 +29,7 @@ CLIPPY_CI_FLAGS := -D warnings \
 	-A clippy::missing_panics_doc \
 	-A clippy::must_use_candidate
 
-CLIPPY_FLAGS := $(CLIPPY_CI_FLAGS) -D clippy::cargo
+CLIPPY_FLAGS := -D clippy::cargo $(CLIPPY_CI_FLAGS)
 
 RED := \033[0;31m
 GREEN := \033[0;32m
