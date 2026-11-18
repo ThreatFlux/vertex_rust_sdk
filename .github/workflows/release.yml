@@ -185,9 +185,9 @@ jobs:
             gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TITLE" --notes-file release_notes.md
           else
             if [[ "${IS_PRERELEASE}" == "true" ]]; then
-              gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$SOURCE_SHA" --title "$TITLE" --notes-file release_notes.md --prerelease
+              gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$SOURCE_SHA" --title "$TITLE" --notes-file release_notes.md --prerelease --draft
             else
-              gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$SOURCE_SHA" --title "$TITLE" --notes-file release_notes.md
+              gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$SOURCE_SHA" --title "$TITLE" --notes-file release_notes.md --draft
             fi
           fi
 
@@ -339,8 +339,13 @@ jobs:
 
   upload-assets:
     name: Upload Release Assets
-    needs: [prepare, build, sbom]
-    if: github.event_name != 'workflow_dispatch' || !inputs.dry_run
+    needs: [prepare, build, sbom, publish]
+    if: >-
+      !cancelled() &&
+      (github.event_name != 'workflow_dispatch' || !inputs.dry_run) &&
+      needs.prepare.result == 'success' && needs.build.result == 'success' &&
+      needs.sbom.result == 'success' &&
+      (needs.publish.result == 'success' || needs.publish.result == 'skipped')
     runs-on: ubuntu-latest
     permissions:
       contents: write # Uploads the release assets.
@@ -354,15 +359,29 @@ jobs:
       - name: Upload to release
         shell: bash
         run: |
+          set -euo pipefail
           shopt -s globstar nullglob
+          count=0
           for file in artifacts/**/*; do
             if [ -f "$file" ]; then
               gh release upload "v${VERSION}" "$file" --repo "$GITHUB_REPOSITORY" --clobber
+              count=$((count + 1))
             fi
           done
+          (( count > 0 )) || { echo "No qualified release assets" >&2; exit 1; }
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ needs.prepare.outputs.version }}
+
+      - name: Publish the completed GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          source="$(gh api "repos/${GITHUB_REPOSITORY}/commits/refs/tags/v${VERSION}" --jq .sha)"
+          [[ "$source" == "$GITHUB_SHA" ]] || { echo "Release tag source changed" >&2; exit 1; }
+          gh release edit "v${VERSION}" --repo "$GITHUB_REPOSITORY" --draft=false
 
   publish:
     name: Publish to crates.io
