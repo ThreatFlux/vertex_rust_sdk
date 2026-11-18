@@ -29,3 +29,10 @@ and no advisory exception is added.
 GitHub owns runtime/HTTP/serialization/MSRV/security tests and release checks.
 Fresh Countermeasure consumers must adopt the published breaking version and
 its public timestamp type after all configured publication channels qualify.
+
+The release preview selects 1.0.0 for this breaking change from 0.11.5. The
+automatic release controller uses the reviewed proposal mode of the SHA-pinned
+shared v0.7.13 workflow, rather than committing its version bump directly to
+main. Exact-main CI/security must pass, then the version proposal must pass its
+own checks and independent review before merge, tagging and publication. A
+read-only preview does not publish a crate, native binary or container.
