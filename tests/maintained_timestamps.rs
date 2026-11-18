@@ -12,10 +12,12 @@ fn cache_response_preserves_offset_instants_nanoseconds_and_optional_fields() {
     .unwrap();
     let expected: Timestamp = "2026-11-18T00:00:00.123456789Z".parse().unwrap();
     assert_eq!(record.expire_time, Some(expected));
-    assert_eq!(record.create_time.unwrap().as_second(), -1);
+    let before_epoch: Timestamp = "1969-12-31T23:59:59.5Z".parse().unwrap();
+    assert_eq!(record.create_time, Some(before_epoch));
     assert!(record.update_time.is_none());
     let wire = serde_json::to_value(record).unwrap();
     assert_eq!(wire["expireTime"], json!("2026-11-18T00:00:00.123456789Z"));
+    assert_eq!(wire["createTime"], json!("1969-12-31T23:59:59.5Z"));
     assert!(!wire.as_object().unwrap().contains_key("updateTime"));
 }
 

@@ -10,6 +10,10 @@ uses canonical UTC and fractional precision. Optional fields retain their
 existing omission behavior. Jiff accepts a lexical leap second 60 and normalizes
 it to 59, preserving fractional digits. Invalid dates and missing offsets fail.
 JWT claims remain numeric Unix seconds, and the CLI keeps its UTC display format.
+Jiff's `as_second()` truncates negative fractional instants toward zero; code
+that relied on chrono's floored `timestamp()` result before the Unix epoch must
+handle that rounding explicitly. The timestamp instant and RFC3339 JSON retain
+their original subsecond precision.
 
 Provider-controlled token lifetimes use checked arithmetic. An unrepresentable
 lifetime returns an error before a cached token is replaced. Refresh-margin
