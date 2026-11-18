@@ -9,6 +9,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- **Breaking:** public cache and Claude response timestamps now use the SDK's
+  re-exported Jiff `Timestamp`. JSON remains RFC3339; see the
+  [maintained-time migration guide](docs/maintained-time-migration.md).
+- Removed the unused `gcp_auth` declaration and its chrono dependency. Built-in
+  environment, service-account and ADC authentication providers remain available.
+- Reject out-of-range OAuth lifetimes before replacing cached tokens, and compute
+  refresh margins without subtracting from the timestamp's minimum boundary.
+
 - Consolidated dependency updates onto stable Rust 1.99.1, refreshed all
   resolvable Cargo dependencies, GitHub Actions pins, and both container base
   digests. The consumer MSRV remains Rust 1.96.0.

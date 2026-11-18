@@ -1,7 +1,7 @@
-use chrono::{DateTime, Utc};
+use threatflux_vertex_rust_sdk::Timestamp;
 
-pub fn format_timestamp(timestamp: &DateTime<Utc>) -> String {
-    timestamp.format("%Y-%m-%d %H:%M:%S UTC").to_string()
+pub fn format_timestamp(timestamp: &Timestamp) -> String {
+    timestamp.strftime("%Y-%m-%d %H:%M:%S UTC").to_string()
 }
 
 pub fn preview_text(text: &str, limit: usize) -> String {

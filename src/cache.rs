@@ -5,7 +5,7 @@
 
 use crate::error::{Result, VertexError};
 use crate::types::Content;
-use chrono::{DateTime, Utc};
+use crate::Timestamp;
 use serde::{Deserialize, Serialize};
 use std::fs;
 
@@ -32,15 +32,15 @@ pub struct CachedContent {
     /// Cache expiration time
     #[serde(rename = "expireTime")]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub expire_time: Option<DateTime<Utc>>,
+    pub expire_time: Option<Timestamp>,
     /// Cache creation time
     #[serde(rename = "createTime")]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub create_time: Option<DateTime<Utc>>,
+    pub create_time: Option<Timestamp>,
     /// Cache last update time
     #[serde(rename = "updateTime")]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub update_time: Option<DateTime<Utc>>,
+    pub update_time: Option<Timestamp>,
     /// Usage metadata
     #[serde(rename = "usageMetadata")]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -143,13 +143,14 @@ impl CachedContent {
     /// Check if cache has expired
     #[must_use]
     pub fn is_expired(&self) -> bool {
-        self.expire_time.is_some_and(|expire_time| Utc::now() > expire_time)
+        self.expire_time.is_some_and(|expire_time| Timestamp::now() > expire_time)
     }
 
     /// Get remaining TTL in seconds
     #[must_use]
     pub fn remaining_ttl_seconds(&self) -> Option<i64> {
-        self.expire_time.map(|expire_time| (expire_time - Utc::now()).num_seconds().max(0))
+        self.expire_time
+            .map(|expire_time| expire_time.duration_since(Timestamp::now()).as_secs().max(0))
     }
 }
 
@@ -178,7 +179,7 @@ pub struct UpdateCachedContentRequest {
     /// Updated expiration time
     #[serde(rename = "expireTime")]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub expire_time: Option<DateTime<Utc>>,
+    pub expire_time: Option<Timestamp>,
 }
 
 impl UpdateCachedContentRequest {

@@ -1,6 +1,7 @@
+use crate::Timestamp;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use chrono::{Duration, Utc};
+use jiff::SignedDuration;
 use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -30,11 +31,17 @@ struct TokenResponse {
     expires_in: i64,
 }
 
+/// Validate provider-controlled expiry without panicking or replacing a cached token.
+fn token_expiration(now: Timestamp, seconds: i64) -> Result<Timestamp> {
+    now.checked_add(SignedDuration::from_secs(seconds))
+        .context("OAuth token lifetime exceeds the supported timestamp range")
+}
+
 /// Cached token
 #[derive(Debug, Clone)]
 struct CachedToken {
     access_token: String,
-    expires_at: chrono::DateTime<Utc>,
+    expires_at: Timestamp,
 }
 
 /// Service account key structure
@@ -114,16 +121,16 @@ impl EnvAuth {
     /// Returns an error when the private key cannot be parsed or the JWT cannot
     /// be encoded.
     fn generate_jwt(&self) -> Result<String> {
-        let now = Utc::now();
-        let exp = now + Duration::hours(1);
+        let now = Timestamp::now();
+        let exp = token_expiration(now, 3600)?;
 
         let claims = Claims {
             iss: self.client_email.clone(),
             sub: self.client_email.clone(),
             scope: "https://www.googleapis.com/auth/cloud-platform".to_string(),
             aud: "https://oauth2.googleapis.com/token".to_string(),
-            exp: exp.timestamp(),
-            iat: now.timestamp(),
+            exp: exp.as_second(),
+            iat: now.as_second(),
         };
 
         // Parse the private key (handle both escaped and unescaped newlines)
@@ -179,8 +186,8 @@ impl AuthProvider for EnvAuth {
         let should_refresh = {
             let token = self.token.read().await;
             token.as_ref().is_none_or(|t| {
-                let now = Utc::now();
-                t.expires_at - Duration::minutes(5) <= now
+                let now = Timestamp::now();
+                t.expires_at.duration_since(now) <= SignedDuration::from_mins(5)
             })
         };
 
@@ -188,7 +195,7 @@ impl AuthProvider for EnvAuth {
             let jwt = self.generate_jwt()?;
             let token_response = self.exchange_jwt_for_token(&jwt).await?;
 
-            let expires_at = Utc::now() + Duration::seconds(token_response.expires_in);
+            let expires_at = token_expiration(Timestamp::now(), token_response.expires_in)?;
             let cached_token =
                 CachedToken { access_token: token_response.access_token, expires_at };
 
@@ -246,16 +253,16 @@ impl ServiceAccountAuth {
     /// Returns an error when the private key cannot be parsed or the JWT cannot
     /// be encoded.
     fn generate_jwt(&self) -> Result<String> {
-        let now = Utc::now();
-        let exp = now + Duration::hours(1);
+        let now = Timestamp::now();
+        let exp = token_expiration(now, 3600)?;
 
         let claims = Claims {
             iss: self.key.client_email.clone(),
             sub: self.key.client_email.clone(),
             scope: "https://www.googleapis.com/auth/cloud-platform".to_string(),
             aud: self.key.token_uri.clone(),
-            exp: exp.timestamp(),
-            iat: now.timestamp(),
+            exp: exp.as_second(),
+            iat: now.as_second(),
         };
 
         let key = EncodingKey::from_rsa_pem(self.key.private_key.as_bytes())
@@ -308,8 +315,8 @@ impl AuthProvider for ServiceAccountAuth {
         let should_refresh = {
             let token = self.token.read().await;
             token.as_ref().is_none_or(|t| {
-                let now = Utc::now();
-                t.expires_at - Duration::minutes(5) <= now
+                let now = Timestamp::now();
+                t.expires_at.duration_since(now) <= SignedDuration::from_mins(5)
             })
         };
 
@@ -317,7 +324,7 @@ impl AuthProvider for ServiceAccountAuth {
             let jwt = self.generate_jwt()?;
             let token_response = self.exchange_jwt_for_token(&jwt).await?;
 
-            let expires_at = Utc::now() + Duration::seconds(token_response.expires_in);
+            let expires_at = token_expiration(Timestamp::now(), token_response.expires_in)?;
             let cached_token =
                 CachedToken { access_token: token_response.access_token, expires_at };
 
@@ -414,15 +421,15 @@ impl AuthProvider for ApplicationDefaultCredentials {
         let should_refresh = {
             let token = self.token.read().await;
             token.as_ref().is_none_or(|t| {
-                let now = Utc::now();
-                t.expires_at - Duration::minutes(5) <= now
+                let now = Timestamp::now();
+                t.expires_at.duration_since(now) <= SignedDuration::from_mins(5)
             })
         };
 
         if should_refresh {
             let token_response = self.fetch_token().await?;
 
-            let expires_at = Utc::now() + Duration::seconds(token_response.expires_in);
+            let expires_at = token_expiration(Timestamp::now(), token_response.expires_in)?;
             let cached_token =
                 CachedToken { access_token: token_response.access_token, expires_at };
 
@@ -466,6 +473,58 @@ mod tests {
     use tokio::sync::Mutex;
 
     static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+
+    #[test]
+    fn provider_lifetime_bounds_are_fallible_and_keep_zero_and_negative_semantics() {
+        let now: Timestamp = "2026-11-18T00:00:00Z".parse().unwrap();
+        for seconds in [i64::MAX, i64::MIN, 300_000_000_000] {
+            assert!(token_expiration(now, seconds).is_err());
+        }
+        assert_eq!(token_expiration(now, 0).unwrap(), now);
+        assert_eq!(token_expiration(now, -1).unwrap().as_second(), now.as_second() - 1);
+        assert_eq!(token_expiration(now, 3600).unwrap().as_second(), now.as_second() + 3600);
+    }
+
+    #[tokio::test]
+    async fn service_account_rejects_http_lifetime_overflow_without_replacing_cached_token() {
+        for seconds in [300_000_000_000_i64, i64::MAX, 3600] {
+            let mut server = mockito::Server::new_async().await;
+            let token_mock = server.mock("POST", "/token")
+                .expect(1).with_status(200).with_header("content-type", "application/json")
+                .with_body(serde_json::json!({"access_token": "fixture-new", "token_type": "Bearer", "expires_in": seconds}).to_string())
+                .create_async().await;
+            let key = ServiceAccountKey {
+                key_type: "test_service_account".to_owned(),
+                project_id: "demo".to_owned(),
+                private_key_id: "fixture".to_owned(),
+                private_key: generate_private_key_pem(),
+                client_email: "fixture@example.com".to_owned(),
+                client_id: "fixture".to_owned(),
+                auth_uri: "https://example.invalid/auth".to_owned(),
+                token_uri: format!("{}/token", server.url()),
+                auth_provider_x509_cert_url: String::new(),
+                client_x509_cert_url: String::new(),
+            };
+            let auth =
+                ServiceAccountAuth::from_json(&serde_json::to_string(&key).unwrap()).await.unwrap();
+            *auth.token.write().await = Some(CachedToken {
+                access_token: "fixture-old".to_owned(),
+                expires_at: Timestamp::now(),
+            });
+            let result = auth.refresh_if_needed().await;
+            if seconds == 3600 {
+                result.expect("ordinary provider lifetime remains valid");
+                assert_eq!(auth.get_token().await.unwrap(), "fixture-new");
+            } else {
+                assert!(result.is_err());
+                assert_eq!(auth.token.read().await.as_ref().unwrap().access_token, "fixture-old");
+            }
+            token_mock.assert_async().await;
+            drop(auth);
+            drop(token_mock);
+            drop(server);
+        }
+    }
 
     fn generate_private_key_pem() -> String {
         let header = ["-----BEGIN", "PRIVATE KEY-----"].join(" ");

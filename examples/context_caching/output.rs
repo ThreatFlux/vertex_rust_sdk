@@ -68,7 +68,7 @@ pub fn print_cache_details(cache: &CachedContent) {
     println!("   Contents: {} items", cache.contents.len());
 
     if let Some(expire_time) = cache.expire_time {
-        println!("   Expires: {}", expire_time.format("%Y-%m-%d %H:%M:%S UTC"));
+        println!("   Expires: {}", expire_time.strftime("%Y-%m-%d %H:%M:%S UTC"));
         if let Some(remaining) = cache.remaining_ttl_seconds() {
             #[allow(clippy::cast_precision_loss)]
             let remaining_hours = remaining as f64 / 3600.0;
@@ -89,7 +89,7 @@ pub fn print_cache_list(list: &ListCachedContentsResponse) {
 pub fn print_updated_ttl(cache: &CachedContent) {
     println!("\n⏰ Updated cache TTL");
     if let Some(expire_time) = cache.expire_time {
-        println!("✅ New expiration time: {}", expire_time.format("%Y-%m-%d %H:%M:%S UTC"));
+        println!("✅ New expiration time: {}", expire_time.strftime("%Y-%m-%d %H:%M:%S UTC"));
     } else if let Some(ttl) = &cache.ttl {
         println!("✅ TTL updated to {ttl}");
     } else {

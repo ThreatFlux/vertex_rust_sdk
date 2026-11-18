@@ -55,6 +55,9 @@ pub mod streaming;
 pub mod streaming_support;
 pub mod types;
 
+/// Maintained UTC timestamp used by public cache and message models.
+pub use jiff::Timestamp;
+
 // Re-export main types for convenience
 pub use api::chat::ChatConversation;
 pub use api::embeddings::{
