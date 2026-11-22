@@ -624,6 +624,10 @@ mod tests {
             serde_json::to_string(&key).expect("serialize test service account key to JSON");
 
         let auth = ServiceAccountAuth::from_json(&key_json).await.unwrap();
+        let jwt = auth.generate_jwt().expect("sign service account assertion");
+        let header = jsonwebtoken::decode_header(jwt).expect("decode service account JWT header");
+        assert_eq!(header.alg, Algorithm::RS256);
+
         let first = auth.get_token().await.unwrap();
         let second = auth.get_token().await.unwrap();
 
